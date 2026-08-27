@@ -495,8 +495,18 @@
     logLine(successCount === selectedFiles.length ? 'done' : '', 
       `${successCount}/${selectedFiles.length} images upload ho gayi. <a href="https://drive.google.com/drive/folders/${folderId}" target="_blank">Folder kholo →</a>`);
 
-    uploadBtn.disabled = false;
+    // Agli SKU/folder ke liye form reset karo taaki turant naya kaam shuru ho sake
+    if (successCount === selectedFiles.length) {
+      selectedFiles.forEach(item => URL.revokeObjectURL(item.url));
+      selectedFiles = [];
+      renderThumbs();
+      folderNameInput.value = '';
+      folderNameInput.focus();
+    }
+
+    uploadBtn.disabled = true;
     connectBtn.disabled = !!accessToken;
+    updateUploadState();
   });
 </script>
 </body>
