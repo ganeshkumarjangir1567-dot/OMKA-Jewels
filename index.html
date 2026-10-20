@@ -593,7 +593,8 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
             <div class="field"><span class="lab">Shots per style</span><div class="round" id="perSeg"></div></div>
           </div>
           <div class="field"><span class="lab">Quality</span>
-            <div class="chips" id="qualSeg"><button type="button" class="chip" data-q="std" aria-pressed="true">Standard · fast</button><button type="button" class="chip" data-q="ultra" aria-pressed="false">Ultra HD · extra detail</button></div></div>
+            <div class="chips" id="qualSeg"><button type="button" class="chip" data-q="std" aria-pressed="false">Standard · fast</button><button type="button" class="chip" data-q="hd" aria-pressed="true">HD · 2K</button><button type="button" class="chip" data-q="ultra" aria-pressed="false">Ultra HD · 4K</button></div>
+            <p class="hint" id="qualHint">HD and Ultra HD use the Pro model for sharper, bigger photos. They take a little longer and cost a bit more.</p></div>
           <div class="field" id="modelBox" hidden>
             <span class="lab">Model</span>
             <div class="chips" id="skinSeg"></div>
@@ -676,6 +677,7 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
           <div class="field"><label class="lab" for="bkSize">Size</label><input type="range" id="bkSize" min="6" max="30" value="14"></div>
           <div class="field"><label class="lab" for="bkOp">Opacity</label><input type="range" id="bkOp" min="20" max="100" value="70"></div>
         </div>
+        <div class="field"><span class="lab">Download size <em>(auto-enhance)</em></span><div class="chips" id="bkUp"><button type="button" class="chip" data-u="off" aria-pressed="false">Original</button><button type="button" class="chip" data-u="2K" aria-pressed="false">2K</button><button type="button" class="chip" data-u="4K" aria-pressed="true">4K · enhanced</button></div><p class="hint">Photos are enlarged and sharpened on your device when you download. No extra AI cost. Tip: choose JPG for 4K, PNG files get very large.</p></div>
         <div class="field"><span class="lab">Download format</span><div class="chips" id="bkFmt"><button type="button" class="chip" data-f="png" aria-pressed="true">PNG · best quality</button><button type="button" class="chip" data-f="jpg" aria-pressed="false">JPG · small file</button></div></div>
       </div>
       <div class="blk">
@@ -774,7 +776,7 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
       <div class="field">
         <label class="lab" for="refineTx">Refine this photo</label>
         <textarea id="refineTx" placeholder="e.g. make the background darker, add more sparkle to the necklace"></textarea>
-        <div class="row"><button type="button" class="btn sm" id="refineBtn">Refine</button><button type="button" class="btn sm" id="regenBtn">New version</button></div>
+        <div class="row"><button type="button" class="btn sm" id="refineBtn">Refine</button><button type="button" class="btn sm" id="regenBtn">New version</button><button type="button" class="btn pink sm" id="hdBtn">Make 4K HD</button></div>
         <p class="status" id="lbStatus"></p>
       </div>
       <div class="rule"></div>
@@ -914,7 +916,9 @@ const ICONS=(function(){
 })();
 
 /* =================== STATE =================== */
-const st={step:1,type:null,styles:[],size:'1:1',per:2,skin:'wheatish',q:'std',light:'auto',angle:'auto',tone:'auto',src:null,grp:'All'};
+const QUAL={std:{lbl:'Standard',size:null},hd:{lbl:'HD 2K',size:'2K'},ultra:{lbl:'Ultra HD 4K',size:'4K'}};
+const qLabel=()=>QUAL[st.q].lbl;
+const st={step:1,type:null,styles:[],size:'1:1',per:2,skin:'wheatish',q:'hd',light:'auto',angle:'auto',tone:'auto',src:null,grp:'All'};
 let customStyles=LS.get('zs-custom',[]);
 const allStyles=()=>BUILTIN_STYLES.concat(customStyles);
 
@@ -1050,8 +1054,8 @@ function loadSrc(f){
     $('#srcPrev').src=d;$('#srcPrev').hidden=false;$('#dropIc').hidden=true;$('#dropBig').textContent='Photo added ✓';$('#dropHint').textContent='Tap to change';
     URL.revokeObjectURL(u);refresh();};
   im.onload=()=>{let d=null;
-    try{const s=Math.min(1,1800/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
-      const x=c.getContext('2d');if(x){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);d=c.toDataURL('image/jpeg',.93);}}catch(e){d=null;}
+    try{const s=Math.min(1,2048/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
+      const x=c.getContext('2d');if(x){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);d=c.toDataURL('image/jpeg',.95);}}catch(e){d=null;}
     if(d&&d.startsWith('data:image/'))done(d);
     else{const r=new FileReader();r.onload=()=>done(r.result);r.onerror=()=>toast('Could not read the photo',true);r.readAsDataURL(f);}};
   im.onerror=()=>toast('Could not open the photo. Try a JPG or PNG',true);
@@ -1070,8 +1074,8 @@ function refresh(){
   const b=$('#sumB'),s=$('#sumS');
   if(st.step===1){b.textContent=st.type?st.type.nm:'Choose jewellery';s.textContent='Step 1 of 4 · Jewellery type';}
   else if(st.step===2){b.textContent=st.styles.length?`${st.styles.length} style selected`:'Choose a style';s.textContent=st.styles.length?st.styles.map(x=>x.nm).join(', ')+' · '+st.size:'Step 2 of 4 · Max 4 styles';}
-  else if(st.step===3){b.textContent=st.src?'Photo ready ✓':'Upload a photo';s.textContent=`${totalShots()} shots · ${st.q==='ultra'?'Ultra HD':'Standard'}`;}
-  else{b.textContent=`${totalShots()} shots`;s.textContent=`${st.type.nm} · ${st.size} · ${st.q==='ultra'?'Ultra HD':'Standard'}`;}
+  else if(st.step===3){b.textContent=st.src?'Photo ready ✓':'Upload a photo';s.textContent=`${totalShots()} shots · ${qLabel()}`;}
+  else{b.textContent=`${totalShots()} shots`;s.textContent=`${st.type.nm} · ${st.size} · ${qLabel()}`;}
 }
 function go(n){
   if(n>1&&!st.type)n=1;if(n>2&&!st.styles.length)n=2;if(n>3&&!st.src)n=3;
@@ -1086,7 +1090,7 @@ function buildReview(){
   const lab=(arr,v)=>(arr.find(a=>a[0]===v)||[,v])[1];
   $('#revImg').src=st.src.url;$('#revTitle').textContent=st.type.nm;
   $('#revSub').textContent=$('#metal').selectedOptions[0].textContent;
-  const pills=[st.size,st.q==='ultra'?'Ultra HD':'Standard',st.per+' per style'];
+  const pills=[st.size,qLabel(),st.per+' per style'];
   if(st.styles.some(s=>s.model))pills.push(lab(SKINS,st.skin)+' model');
   if(st.light!=='auto')pills.push(lab(LIGHTS,st.light));if(st.angle!=='auto')pills.push(lab(ANGLES,st.angle)+' angle');if(st.tone!=='auto')pills.push(st.tone);
   $('#revPills').innerHTML=pills.map(p=>`<i>${esc(p)}</i>`).join('');
@@ -1162,14 +1166,17 @@ function friendly(msg,status){
   if(status===429)return'Quota limit reached. Try again later, or set 1 shot at a time.';
   if(status>=500)return'Google\'s server is busy. Please retry.';
   return msg;}
-async function gen(text,img,ratio,model){
+async function gen(text,img,ratio,model,size){
   const key=savedKey;
   const body={contents:[{role:'user',parts:[{text},{inline_data:{mime_type:img.mime,data:img.data}}]}],generationConfig:{responseModalities:['TEXT','IMAGE'],imageConfig:{aspectRatio:ratio}}};
+  if(size)body.generationConfig.imageConfig.imageSize=size;
   const send=()=>fetch(`${API}/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
   let r,j;
   for(let a=0;a<3;a++){
     r=await send();j=await r.json().catch(()=>({}));
-    if(!r.ok&&/imageConfig|aspect/i.test(j.error?.message||'')&&body.generationConfig.imageConfig){delete body.generationConfig.imageConfig;a--;continue;}
+    const em=j.error?.message||'',ic=body.generationConfig.imageConfig;
+    if(!r.ok&&ic&&ic.imageSize&&/image_?size/i.test(em)){if(/^\dK$/.test(ic.imageSize))ic.imageSize=ic.imageSize.toLowerCase();else delete ic.imageSize;a--;continue;}
+    if(!r.ok&&ic&&/imageConfig|image_config|aspect/i.test(em)){delete body.generationConfig.imageConfig;a--;continue;}
     if(r.status===429||r.status>=500){await new Promise(z=>setTimeout(z,2500*(a+1)));continue;}
     break;
   }
@@ -1206,7 +1213,7 @@ function placeholder(label,ratio){const c=document.createElement('div');c.classN
   const t=c.querySelector('.ldtx');let i=0;c._iv=setInterval(()=>{t.textContent=LOADING[++i%LOADING.length];},2600);return c;}
 function shotTile(o){
   const c=document.createElement('div');c.className='tile';c.dataset.id=o.id;
-  c.innerHTML=`<div class="im" style="aspect-ratio:${ar(o.ratio)}">${o.parent?'<span class="flag orange">Refined</span>':''}<img alt="${esc(o.styleNm)}" loading="lazy">
+  c.innerHTML=`<div class="im" style="aspect-ratio:${ar(o.ratio)}">${o.hd?'<span class="flag teal">4K HD</span>':o.parent?'<span class="flag orange">Refined</span>':''}<img alt="${esc(o.styleNm)}" loading="lazy">
      <button type="button" class="heart${o.fav?' on':''}" aria-label="Favourite" aria-pressed="${!!o.fav}">${HEART}</button><span class="rate"><i>★</i>AI<span>${o.ratio}</span></span></div>
    <span class="tb"><span class="br">${esc(o.styleNm)}</span><span class="ds">${esc(o.typeNm)}${o.metal?' · '+esc(o.metal):''}</span><button type="button" class="dlb">Download</button></span>`;
   c.querySelector('img').src=o.url;
@@ -1225,7 +1232,7 @@ async function runPool(tasks,n){let i=0;await Promise.all(Array.from({length:Mat
 async function shoot(){
   if(busy)return;
   if(!savedKey){toast('Please add your Gemini API key in Profile first',true);showView('settings');return;}
-  const per=st.per,model=st.q==='ultra'?cfg.ultra:cfg.std,ratio=st.size,type=st.type,src=st.src,metal=$('#metal').selectedOptions[0].textContent;
+  const per=st.per,model=st.q==='std'?cfg.std:cfg.ultra,qsize=QUAL[st.q].size,ratio=st.size,type=st.type,src=st.src,metal=$('#metal').selectedOptions[0].textContent;
   await srcPut({id:src.id,url:src.url});
   busy=true;refresh();
   $('#resHead').hidden=false;$('#meter').hidden=false;const bar=$('#meter i');bar.style.width='4%';
@@ -1235,8 +1242,8 @@ async function shoot(){
   st.styles.forEach(s=>{for(let v=0;v<per;v++){
     const prompt=buildPrompt(s,v),ph=placeholder(s.nm,ratio);$('#results').prepend(ph);
     const job=async card=>{
-      try{const url=await gen(prompt,src,ratio,model);
-        const o={id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,ratio,typeId:type.id,typeNm:type.nm,metal,styleId:s.id,styleNm:s.nm,srcId:src.id,prompt,model,fav:false,uid:authUser?authUser.uid:null};
+      try{const url=await gen(prompt,src,ratio,model,qsize);
+        const o={id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,ratio,typeId:type.id,typeNm:type.nm,metal,styleId:s.id,styleNm:s.nm,srcId:src.id,prompt,model,qsize,fav:false,uid:authUser?authUser.uid:null};
         await dbPut(o);clearInterval(card._iv);card.replaceWith(shotTile(o));ok++;bump('made');badges();return true;}
       catch(e){failTile(card,e.message,()=>{const np=placeholder(s.nm,ratio);card.replaceWith(np);job(np);});return false;}
     };
@@ -1290,7 +1297,7 @@ $('#zipBtn').onclick=async()=>{
 };
 
 /* =================== DOWNLOAD + BRAND =================== */
-let bk=Object.assign({on:false,name:'',logo:'',pos:'br',size:14,op:70,fmt:'png'},LS.get('zs-brand',{}));
+let bk=Object.assign({on:false,name:'',logo:'',pos:'br',size:14,op:70,fmt:'png',up:'4K'},LS.get('zs-brand',{}));
 const ext=()=>bk.fmt==='jpg'?'jpg':'png';
 function fname(o,i){return `omka-${o.typeNm}-${o.styleNm}${i?'-'+i:''}-${o.id.slice(-4)}.${ext()}`.toLowerCase().replace(/[^a-z0-9.\-]+/g,'-');}
 function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
@@ -1311,17 +1318,37 @@ async function drawBrand(ctx,W,H){
   else{const r=bk.pos[1]==='r',t=bk.pos[0]==='t';drawAt(r?W-pad:pad,t?pad+measure().H:H-pad,r?'r':'l');}
   ctx.restore();
 }
+/* on-device enhance: step-wise high-quality upscale + unsharp mask (no AI cost) */
+function boxBlur(src,W,H){const tmp=new Uint8ClampedArray(src.length),out=new Uint8ClampedArray(src.length),row=W*4;
+  for(let y=0;y<H;y++){const o=y*row;for(let x=0;x<W;x++){const i=o+x*4,l=x>0?i-4:i,r=x<W-1?i+4:i;
+    tmp[i]=(src[l]+src[i]+src[r])/3;tmp[i+1]=(src[l+1]+src[i+1]+src[r+1])/3;tmp[i+2]=(src[l+2]+src[i+2]+src[r+2])/3;tmp[i+3]=src[i+3];}}
+  for(let y=0;y<H;y++){const o=y*row,u=y>0?o-row:o,dn=y<H-1?o+row:o;for(let x=0;x<W;x++){const k=x*4;
+    out[o+k]=(tmp[u+k]+tmp[o+k]+tmp[dn+k])/3;out[o+k+1]=(tmp[u+k+1]+tmp[o+k+1]+tmp[dn+k+1])/3;out[o+k+2]=(tmp[u+k+2]+tmp[o+k+2]+tmp[dn+k+2])/3;out[o+k+3]=tmp[o+k+3];}}
+  return out;}
+function sharpen(c,amount){const x=c.getContext('2d'),W=c.width,H=c.height,id=x.getImageData(0,0,W,H),d=id.data,b=boxBlur(d,W,H);
+  for(let i=0;i<d.length;i+=4){d[i]=d[i]+amount*(d[i]-b[i]);d[i+1]=d[i+1]+amount*(d[i+1]-b[i+1]);d[i+2]=d[i+2]+amount*(d[i+2]-b[i+2]);}
+  x.putImageData(id,0,0);}
+function enhanceTo(im,target){
+  let src=im,w=im.naturalWidth||im.width,h=im.naturalHeight||im.height;
+  if(!target||Math.max(w,h)>=target)return null;
+  while(Math.max(w,h)<target){const f=Math.min(2,target/Math.max(w,h)),nw=Math.round(w*f),nh=Math.round(h*f);
+    const c=document.createElement('canvas');c.width=nw;c.height=nh;const x=c.getContext('2d');
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,0,0,nw,nh);src=c;w=nw;h=nh;}
+  sharpen(src,.55);return src;}
 async function branded(url,useBrand){
-  const im=await loadImg(url),c=document.createElement('canvas');c.width=im.width;c.height=im.height;const x=c.getContext('2d');
+  const im=await loadImg(url);let big=null;
+  const target=bk.up==='4K'?4096:bk.up==='2K'?2048:0;
+  if(target){await new Promise(r=>setTimeout(r,30));try{big=enhanceTo(im,target);}catch(e){big=null;log('warn','enhance failed',e);}}
+  const srcEl=big||im,c=document.createElement('canvas');c.width=big?big.width:im.width;c.height=big?big.height:im.height;const x=c.getContext('2d');
   if(bk.fmt==='jpg'){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);}
-  x.drawImage(im,0,0);if(useBrand&&bk.on)await drawBrand(x,c.width,c.height);
+  x.drawImage(srcEl,0,0);if(useBrand&&bk.on)await drawBrand(x,c.width,c.height);
   return c.toDataURL(bk.fmt==='jpg'?'image/jpeg':'image/png',.95);
 }
-async function download(o,useBrand){try{const u=await branded(o.url,useBrand);saveBlob(await (await fetch(u)).blob(),fname(o));markSaved([o]);toast('Download started');}
+async function download(o,useBrand){try{if(bk.up!=='off')toast(bk.up==='4K'?'Enhancing to 4K…':'Enhancing to 2K…');const u=await branded(o.url,useBrand);saveBlob(await (await fetch(u)).blob(),fname(o));markSaved([o]);toast('Download started');}
   catch(e){if(/^https?:/.test(o.url)){const a=document.createElement('a');a.href=o.url;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();toast('Photo opened in a new tab. The watermark could not be added.',true);}
   else toast('Download failed: '+e.message,true);}}
 const bkSave=()=>{LS.set('zs-brand',bk);bkPreview();};
-function bkSync(){$('#bkOn').setAttribute('aria-pressed',String(bk.on));$('#bkOn').textContent=bk.on?'Watermark ON':'Watermark OFF';
+function bkSync(){$$('#bkUp .chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.u===bk.up)));$('#bkOn').setAttribute('aria-pressed',String(bk.on));$('#bkOn').textContent=bk.on?'Watermark ON':'Watermark OFF';
   $('#bkName').value=bk.name;$('#bkSize').value=bk.size;$('#bkOp').value=bk.op;
   $('#bkLogoPrev').hidden=!bk.logo;$('#bkLogoDel').hidden=!bk.logo;if(bk.logo)$('#bkLogoPrev').src=bk.logo;
   $$('#bkFmt .chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.f===bk.fmt)));}
@@ -1330,6 +1357,7 @@ $('#bkOn').onclick=()=>{bk.on=!bk.on;bkSync();bkSave();toast(bk.on?'Watermark wi
 $('#bkName').oninput=()=>{bk.name=$('#bkName').value;bkSave();};
 $('#bkSize').oninput=()=>{bk.size=+$('#bkSize').value;bkSave();};
 $('#bkOp').oninput=()=>{bk.op=+$('#bkOp').value;bkSave();};
+$$('#bkUp .chip').forEach(b=>b.onclick=()=>{bk.up=b.dataset.u;bkSync();LS.set('zs-brand',bk);toast(bk.up==='off'?'Downloads stay original size':'Downloads will be enhanced to '+bk.up);});
 $$('#bkFmt .chip').forEach(b=>b.onclick=()=>{bk.fmt=b.dataset.f;bkSync();bkSave();});
 $('#bkLogoBtn').onclick=()=>$('#bkLogo').click();
 $('#bkLogoDel').onclick=()=>{bk.logo='';bkSync();bkSave();};
@@ -1346,8 +1374,8 @@ bkSync();
 let cur=null,cmpOn=false,cmpPos=50;
 async function openPDP(id){
   const o=await dbGet(id);if(!o)return;cur=o;
-  $('#lbAfter').src=o.url;$('#lbBar').textContent=o.styleNm;$('#lbTitle').textContent=o.styleNm;$('#lbSub').textContent=`${o.typeNm}${o.metal?' · '+o.metal:''}`;
-  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${o.ratio}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?'<dt>Type</dt><dd>Refined version</dd>':''}`;
+  $('#lbAfter').onload=()=>{const r=$('#lbRes');if(r)r.textContent=`${$('#lbAfter').naturalWidth} × ${$('#lbAfter').naturalHeight} px`;};$('#lbAfter').src=o.url;$('#lbBar').textContent=o.styleNm;$('#lbTitle').textContent=o.styleNm;$('#lbSub').textContent=`${o.typeNm}${o.metal?' · '+o.metal:''}`;
+  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${o.ratio}</dd><dt>Resolution</dt><dd id="lbRes">…</dd><dt>Quality</dt><dd>${o.qsize?(o.qsize.toUpperCase()==='4K'?'Ultra HD 4K':'HD '+o.qsize.toUpperCase()):'Standard'}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?'<dt>Type</dt><dd>Refined version</dd>':''}`;
   $('#lbPrompt').textContent=o.prompt||'';$('#refineTx').value='';setS($('#lbStatus'),'');$('#lbDelYes').hidden=true;favUI();
   const s=o.srcId?await srcGet(o.srcId):null;$('#cmpToggle').disabled=!s;if(s)$('#lbBefore').src=s.url;
   setCmp(false);if(!$('#lb').open)$('#lb').showModal();$('.pdpin').scrollTop=0;
@@ -1370,21 +1398,24 @@ $('#lbDelYes').onclick=async()=>{await dbDel(cur.id);$$(`.tile[data-id="${cur.id
 async function pdpGen(kind){
   if(!savedKey){toast('Please add your API key in Profile first',true);return;}
   const base=cur;let prompt,img;
-  if(kind==='refine'){const t=$('#refineTx').value.trim();if(!t){setS($('#lbStatus'),'First describe what you want to change.','err');return;}
+  if(kind==='hd'){prompt='Recreate this exact jewellery photograph at much higher resolution and detail. Keep the composition, background, lighting, colours, model and the jewellery design exactly identical. Make metal edges, engravings and gemstone facets razor sharp, remove blur, noise and compression artefacts. Photorealistic, no text, no watermark.';img=await toImg(base.url).catch(()=>null);if(!img){setS($('#lbStatus'),'Could not load this photo.','err');return;}}
+  else if(kind==='refine'){const t=$('#refineTx').value.trim();if(!t){setS($('#lbStatus'),'First describe what you want to change.','err');return;}
     prompt=`Edit this jewellery photograph. Requested change: ${t}. Keep the jewellery piece exactly identical in design, stones, colours and proportions. Keep everything else the same unless the change requires it. Photorealistic, no text, no watermark.`;img=await toImg(base.url).catch(()=>null);if(!img){setS($('#lbStatus'),'Could not load this photo.','err');return;}}
   else{const s=base.srcId?await srcGet(base.srcId):null;if(!s||!base.prompt){setS($('#lbStatus'),'Original photo not found.','err');return;}
     prompt=base.prompt+' Create a fresh alternate take with a different composition.';img=await toImg(s.url).catch(()=>null);if(!img){setS($('#lbStatus'),'Could not load the original photo.','err');return;}}
-  $('#refineBtn').disabled=$('#regenBtn').disabled=true;setS($('#lbStatus'),kind==='refine'?'Refining… 10–40 seconds':'Creating a new version…');
-  try{const url=await gen(prompt,img,base.ratio,base.model||cfg.std);
-    const o=Object.assign({},base,{id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,fav:false,parent:kind==='refine'?base.id:undefined,prompt:kind==='refine'?base.prompt+'\n\nREFINE: '+$('#refineTx').value.trim():base.prompt});
+  $('#refineBtn').disabled=$('#regenBtn').disabled=$('#hdBtn').disabled=true;setS($('#lbStatus'),kind==='hd'?'Making a 4K HD version… up to a minute':kind==='refine'?'Refining… 10–40 seconds':'Creating a new version…');
+  const useModel=kind==='hd'?cfg.ultra:(base.model||cfg.std),useSize=kind==='hd'?'4K':(base.qsize||null);
+  try{const url=await gen(prompt,img,base.ratio,useModel,useSize);
+    const o=Object.assign({},base,{id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,fav:false,parent:kind!=='regen'?base.id:undefined,model:useModel,qsize:useSize,hd:kind==='hd'||undefined,prompt:kind==='refine'?base.prompt+'\n\nREFINE: '+$('#refineTx').value.trim():base.prompt});
     o.uid=authUser?authUser.uid:null;await dbPut(o);bump('made');badges();
     if(!$('#v-create').hidden&&st.step===4)$('#results').prepend(shotTile(o));
     if(!$('#v-gallery').hidden)galleryUI();
-    toast(kind==='refine'?'Refined version ready':'New version ready');openPDP(o.id);
+    toast(kind==='hd'?'4K HD version ready':kind==='refine'?'Refined version ready':'New version ready');openPDP(o.id);
   }catch(e){setS($('#lbStatus'),e.message,'err');}
-  $('#refineBtn').disabled=$('#regenBtn').disabled=false;
+  $('#refineBtn').disabled=$('#regenBtn').disabled=$('#hdBtn').disabled=false;
 }
 $('#refineBtn').onclick=()=>pdpGen('refine');
+$('#hdBtn').onclick=()=>pdpGen('hd');
 $('#regenBtn').onclick=()=>pdpGen('regen');
 
 
