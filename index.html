@@ -1,513 +1,1522 @@
-<!DOCTYPE html>
-<html lang="hi">
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SKU Uploader — Product Images to Drive</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>OMKA Studio</title>
+<script>
+/* =====================================================================
+   FIREBASE SETTINGS — paste your own values here
+   Firebase Console → Project settings → General → Your apps → Web app → "Config"
+   While apiKey still says "PASTE...", the app runs without login (local mode).
+
+   In Firebase you only need to enable Authentication → Sign-in method → Google.
+   Photos are saved in each user's own browser, so Firestore / Storage / Blaze plan are not needed.
+   ===================================================================== */
+window.OMKA_FIREBASE_CONFIG = window.OMKA_FIREBASE_CONFIG || {
+  apiKey: "AIzaSyCqc-t-I7GQMzlFUp-E-VbWlE1Y_Aw9d-4",
+  authDomain: "omka-studio.firebaseapp.com",
+  projectId: "omka-studio",
+  storageBucket: "omka-studio.firebasestorage.app",
+  messagingSenderId: "1055946395820",
+  appId: "1:1055946395820:web:dee1827f8a5afd51710f09"
+};
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&family=Tiro+Devanagari+Hindi&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  :root{
-    --paper:#F7F5F0;
-    --paper-dim:#EFEBE2;
-    --ink:#241F18;
-    --ink-soft:#5B5548;
-    --tag:#B9891E;
-    --tag-deep:#8C6614;
-    --sage:#4D5E48;
-    --sage-bg:#E4EAE0;
-    --rust:#A8402A;
-    --rust-bg:#F3E1DC;
-    --line:#DCD5C6;
-    --radius:10px;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:var(--paper);
-    color:var(--ink);
-    font-family:'Space Grotesk', sans-serif;
-    padding:0 20px 60px;
-  }
-  .app{ max-width:720px; margin:0 auto; }
-  header{
-    padding:48px 0 28px;
-    border-bottom:1px solid var(--line);
-  }
-  .eyebrow{
-    font-family:'JetBrains Mono', monospace;
-    font-size:12px;
-    letter-spacing:.14em;
-    text-transform:uppercase;
-    color:var(--tag-deep);
-    margin:0 0 10px;
-  }
-  h1{
-    font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size:34px;
-    margin:0 0 8px;
-    letter-spacing:-0.01em;
-  }
-  .sub{ color:var(--ink-soft); font-size:15px; line-height:1.55; max-width:56ch; }
+/* Layout: shopping-app shell — white top bar with nav, grey canvas, white sections; phone gets a fixed bottom tab bar. Single light look by design. */
+:root{
+  --pink:#FF3F6C; --pink-dk:#E8305C; --pink-bg:#FFF1F4;
+  --teal:#14B39A; --orange:#FF905A; --green:#03A685; --star:#14958F;
+  --ink:#282C3F; --ink-2:#3E4152; --muted:#535766; --soft:#7E818C; --faint:#94969F;
+  --line:#EAEAEC; --line-2:#D4D5D9; --canvas:#F5F5F6; --white:#FFFFFF;
+  --err:#E5484D;
+  --font:"Assistant","Helvetica Neue",Arial,sans-serif;
+  --deva:"Tiro Devanagari Hindi","Noto Serif Devanagari",serif;
+  --barh:64px; --tabh:0px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--canvas);color:var(--ink);font:400 15px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--white)}
+[hidden]{display:none!important}
+img{max-width:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
 
-  details.setup{
-    margin-top:26px;
-    background:var(--paper-dim);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:2px 18px;
-  }
-  details.setup summary{
-    cursor:pointer;
-    padding:14px 0;
-    font-weight:600;
-    font-size:14px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  details.setup summary::marker{ color:var(--tag); }
-  .setup-body{ padding:0 0 18px; font-size:14px; line-height:1.7; color:var(--ink-soft); }
-  .setup-body ol{ padding-left:20px; margin:8px 0; }
-  .setup-body code{
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:4px;
-    padding:1px 6px;
-    font-family:'JetBrains Mono', monospace;
-    font-size:12.5px;
-    color:var(--ink);
-  }
-  .setup-body a{ color:var(--tag-deep); }
+/* ---------- top bar ---------- */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--white);box-shadow:0 4px 12px rgba(0,0,0,.05)}
+.topin{max-width:1240px;margin:0 auto;height:var(--barh);display:flex;align-items:center;gap:34px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
+.logo .gem{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#FF3F6C,#FF905A);display:grid;place-items:center;color:#fff;font:800 20px/1 var(--font)}
+.logo b{font:800 21px/1 var(--font);letter-spacing:-.2px}
+.logo b span{color:var(--pink)}
+.logo small{display:block;font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--soft);margin-top:3px}
+.tnav{display:flex;align-self:stretch;gap:4px}
+.tnav button{all:unset;cursor:pointer;display:flex;align-items:center;padding:0 16px;font-size:14px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-2);border-bottom:4px solid transparent;border-top:4px solid transparent}
+.tnav button:hover{border-bottom-color:var(--line-2)}
+.tnav button[aria-current=page]{border-bottom-color:var(--pink);color:var(--ink)}
+.tnav button:focus-visible{outline:2px solid var(--pink);outline-offset:-4px}
+.tright{margin-left:auto;display:flex;gap:22px;align-items:center}
+.ticon{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:700;color:var(--ink);position:relative}
+.ticon svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+.ticon .dot{position:absolute;top:-4px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--pink);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
+.ticon .dot.off{background:var(--faint)}
+.ticon:focus-visible{outline:2px solid var(--pink);outline-offset:4px}
 
-  .config-warning{
-    margin-top:16px;
-    background:var(--rust-bg);
-    border:1px solid #E3B9AC;
-    color:var(--rust);
-    border-radius:var(--radius);
-    padding:14px 16px;
-    font-size:13.5px;
-    line-height:1.6;
-    display:none;
-  }
-  .config-warning.show{ display:block; }
-  .config-warning code{ background:#fff; padding:1px 5px; border-radius:4px; }
+/* ---------- bottom tab bar (phone) ---------- */
+.tabs{display:none}
+@media (max-width:820px){
+  :root{--barh:56px;--tabh:60px}
+  .topin{gap:12px}
+  .tnav{display:none}
+  .logo small{display:none}
+  .ticon span.l{display:none}
+  .tabs{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--white);border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+  .tabs button{all:unset;cursor:pointer;height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--soft)}
+  .tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .tabs button[aria-current=page]{color:var(--pink)}
+  .tabs button[aria-current=page] svg{stroke-width:2}
+}
 
-  .panel{
-    margin-top:28px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:26px;
-  }
-  label.field-label{
-    font-family:'JetBrains Mono', monospace;
-    font-size:11.5px;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    color:var(--ink-soft);
-    display:block;
-    margin-bottom:8px;
-  }
-  input[type="text"]{
-    width:100%;
-    padding:12px 14px;
-    border:1px solid var(--line);
-    border-radius:8px;
-    font-family:'JetBrains Mono', monospace;
-    font-size:15px;
-    background:var(--paper);
-    color:var(--ink);
-  }
-  input[type="text"]:focus{ outline:2px solid var(--tag); outline-offset:1px; }
+main{max-width:1240px;margin:0 auto;min-width:0;padding-block:20px calc(var(--tabh) + 110px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (max-width:820px){main{padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px));padding-top:0}}
+.view{display:flex;flex-direction:column;gap:14px;min-width:0}
 
-  .toggle-row{
-    margin-top:14px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-size:13.5px;
-    color:var(--ink-soft);
-  }
-  .toggle-row input{ accent-color:var(--tag); width:15px; height:15px; }
+/* ---------- blocks ---------- */
+.blk{background:var(--white);padding:22px 24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (max-width:820px){.blk{padding:18px 16px}}
+.h{margin:0;font:800 18px/1.25 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.h small{display:block;font-size:13px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--soft);margin-top:4px}
+.h2{margin:0;font:700 16px/1.3 var(--font);color:var(--ink)}
+.sub{margin:0;color:var(--soft);font-size:14px}
+.lab{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.lab em{font-style:normal;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
 
-  .drop-zone{
-    margin-top:20px;
-    border:1.5px dashed #C9BEA5;
-    border-radius:var(--radius);
-    padding:26px;
-    text-align:center;
-    cursor:pointer;
-    color:var(--ink-soft);
-    font-size:14px;
-    transition:background .15s, border-color .15s;
-  }
-  .drop-zone:hover, .drop-zone.drag{
-    background:var(--paper-dim);
-    border-color:var(--tag);
-  }
-  .drop-zone strong{ color:var(--ink); }
+/* ---------- hero banner ---------- */
+.hero{position:relative;overflow:hidden;background:linear-gradient(110deg,#FFE3EA 0%,#FFEFD9 55%,#FFF7EC 100%);padding:26px 28px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center}
+@media (max-width:820px){.hero{padding:20px 16px;grid-template-columns:minmax(0,1fr)}}
+.hero .tagline{font-size:12px;font-weight:800;letter-spacing:.18em;color:var(--pink);text-transform:uppercase}
+.hero h1{margin:6px 0 4px;font:800 clamp(26px,4vw,38px)/1.08 var(--font);color:var(--ink);letter-spacing:-.4px;text-wrap:balance}
+.hero h1 span{color:var(--pink)}
+.hero p{margin:0;color:var(--muted);font-size:15px;max-width:52ch}
+.hero .offers{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.offer{background:var(--white);border:1px dashed var(--pink);color:var(--ink);font-size:12px;font-weight:700;padding:5px 10px;border-radius:4px}
+.offer b{color:var(--pink)}
+.hero .big{font:800 64px/1 var(--font);color:var(--pink);text-align:center}
+.hero .big small{display:block;font-size:12px;letter-spacing:.14em;color:var(--ink);font-weight:800}
+@media (max-width:820px){.hero .big{display:none}}
 
-  .thumb-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(84px,1fr));
-    gap:10px;
-    margin-top:18px;
-  }
-  .thumb{
-    position:relative;
-    aspect-ratio:1/1;
-    border-radius:8px;
-    overflow:hidden;
-    border:1px solid var(--line);
-    background:var(--paper-dim);
-  }
-  .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .thumb .remove{
-    position:absolute; top:4px; right:4px;
-    width:20px; height:20px;
-    border-radius:50%;
-    background:rgba(36,31,24,.72);
-    color:#fff;
-    border:none;
-    font-size:12px;
-    line-height:20px;
-    cursor:pointer;
-    padding:0;
-  }
-  .thumb .idx{
-    position:absolute; bottom:4px; left:4px;
-    background:rgba(36,31,24,.72);
-    color:#fff;
-    font-family:'JetBrains Mono', monospace;
-    font-size:10px;
-    padding:1px 5px;
-    border-radius:4px;
-  }
-  .count{
-    margin-top:10px;
-    font-size:12.5px;
-    color:var(--ink-soft);
-    font-family:'JetBrains Mono', monospace;
-  }
+/* ---------- checkout-style steps ---------- */
+.steps{background:var(--white);display:flex;justify-content:center;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);overflow-x:auto}
+.st{all:unset;cursor:default;font-size:12.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--soft);padding:4px 0;border-bottom:2px solid transparent;white-space:nowrap}
+.st.done{color:var(--teal);cursor:pointer}
+.st.now{color:var(--teal);border-bottom-color:var(--teal)}
+.dash{flex:0 1 70px;min-width:14px;border-top:1px dashed var(--line-2)}
+@media (max-width:420px){.st{font-size:11px;letter-spacing:.08em}}
 
-  .actions{
-    margin-top:22px;
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-  button.btn{
-    font-family:'Space Grotesk', sans-serif;
-    font-weight:600;
-    font-size:14.5px;
-    padding:13px 20px;
-    border-radius:8px;
-    border:1px solid var(--ink);
-    background:var(--ink);
-    color:var(--paper);
-    cursor:pointer;
-    transition:opacity .15s, transform .1s;
-  }
-  button.btn:active{ transform:scale(.98); }
-  button.btn.secondary{
-    background:transparent;
-    color:var(--ink);
-  }
-  button.btn:disabled{
-    opacity:.4;
-    cursor:not-allowed;
-  }
-  button.btn.connected{
-    background:var(--sage-bg);
-    border-color:#B7C4AF;
-    color:var(--sage);
-  }
+/* ---------- category tiles (step 1) ---------- */
+.cats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}
+@media (max-width:1000px){.cats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:560px){.cats{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}}
+.cat{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;position:relative}
+.cat .face{width:100%;aspect-ratio:1/1;max-width:100%;border-radius:8px;display:grid;place-items:center;font:400 clamp(22px,3.4vw,34px)/1 var(--deva);color:var(--ink);transition:transform .2s;border:2px solid transparent}
+.cat:hover .face{transform:translateY(-3px)}
+.cat .nm{font-size:14px;font-weight:700;color:var(--ink);line-height:1.2}
+.cat .sb{font-size:12px;color:var(--soft);margin-top:-6px;line-height:1.25}
+.cat[aria-pressed=true] .face{border-color:var(--pink)}
+.cat[aria-pressed=true]::after{content:"✓";position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--pink);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center}
+.cat:focus-visible .face{outline:2px solid var(--pink);outline-offset:2px}
 
-  .status-log{
-    margin-top:22px;
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .status-line{
-    font-family:'JetBrains Mono', monospace;
-    font-size:13px;
-    padding:9px 12px;
-    border-radius:6px;
-    background:var(--paper-dim);
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .status-line.done{ background:var(--sage-bg); color:var(--sage); }
-  .status-line.error{ background:var(--rust-bg); color:var(--rust); }
-  .status-line a{ color:inherit; font-weight:600; }
+/* ---------- product tiles ---------- */
+.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px 18px}
+@media (max-width:1100px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:820px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;background:var(--line);gap:1px}}
+.tile{all:unset;cursor:pointer;display:flex;flex-direction:column;background:var(--white);position:relative;min-width:0;transition:box-shadow .2s}
+.tile:hover{box-shadow:0 2px 16px 4px rgba(40,44,63,.07)}
+.tile .im{position:relative;max-width:100%;background:var(--canvas);overflow:hidden}
+.tile canvas,.tile .im img,.tile .im > svg{display:block;width:100%;height:100%;object-fit:cover}
+.tile .im img{object-fit:contain}
+.tile .tb{padding:10px 10px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile .br{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .ds{font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .pr{font-size:14px;font-weight:700;color:var(--ink);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-top:2px}
+.tile .pr s{font-weight:400;color:var(--soft);font-size:12px}
+.tile .pr em{font-style:normal;font-weight:400;color:var(--orange);font-size:12px}
+.rate{position:absolute;left:8px;bottom:8px;background:rgba(255,255,255,.92);font-size:12px;font-weight:700;padding:2px 7px;border-radius:2px;display:flex;align-items:center;gap:4px;color:var(--ink)}
+.rate i{font-style:normal;color:var(--star)}
+.rate span{border-left:1px solid var(--line-2);padding-left:5px;font-weight:400;color:var(--muted)}
+.flag{position:absolute;top:0;left:0;background:var(--pink);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;text-transform:uppercase}
+.flag.teal{background:var(--teal)}.flag.orange{background:var(--orange)}
+.sel{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:var(--pink);color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center;opacity:0;transform:scale(.6);transition:.2s}
+.tile[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--pink)}
+.tile[aria-pressed=true] .sel{opacity:1;transform:scale(1)}
+.tile:focus-visible{outline:2px solid var(--pink);outline-offset:-2px}
+.tile.add .im{display:grid;place-items:center;aspect-ratio:4/5;background:var(--pink-bg)}
+.tile.add .plus{width:56px;height:56px;border-radius:50%;border:2px dashed var(--pink);color:var(--pink);font:700 30px/52px var(--font);text-align:center}
+.tile .del{all:unset;cursor:pointer;position:absolute;right:10px;bottom:14px;font-size:12px;font-weight:700;color:var(--soft)}
+.tile .del:hover{color:var(--err)}
 
-  footer{
-    margin-top:40px;
-    font-size:12px;
-    color:var(--ink-soft);
-    text-align:center;
-  }
+/* ---------- chips / size ---------- */
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-2);background:var(--white);border-radius:20px;padding:7px 16px;font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap}
+.chip:hover{border-color:var(--ink)}
+.chip[aria-pressed=true]{border-color:var(--pink);color:var(--pink);background:var(--pink-bg)}
+.chip:disabled{opacity:.4;cursor:not-allowed}
+.sizes{display:flex;gap:12px;flex-wrap:wrap}
+.size{all:unset;cursor:pointer;min-width:96px;border:1px solid var(--line-2);border-radius:8px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--white)}
+.size .fr{border:1.5px solid var(--soft);border-radius:2px}
+.size b{font-size:14px;font-weight:700}
+.size span{font-size:12px;color:var(--soft)}
+.size[aria-pressed=true]{border-color:var(--pink);background:var(--pink-bg)}
+.size[aria-pressed=true] .fr{border-color:var(--pink)}
+.size[aria-pressed=true] b{color:var(--pink)}
+.size:focus-visible{outline:2px solid var(--pink)}
+.round{display:flex;gap:10px;flex-wrap:wrap}
+.rc{all:unset;cursor:pointer;width:50px;height:50px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--white)}
+.rc[aria-pressed=true]{border-color:var(--pink);color:var(--pink)}
+.rc:focus-visible{outline:2px solid var(--pink)}
+.sw{all:unset;cursor:pointer;width:34px;height:34px;border-radius:50%;border:1px solid var(--line-2)}
+.sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--white),0 0 0 4px var(--pink)}
+
+/* ---------- forms ---------- */
+.two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr);gap:10px}}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:480px){.g2{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:8px;min-width:0}
+input[type=text],input[type=password],select,textarea{width:100%;font:400 15px/1.4 var(--font);color:var(--ink);background:var(--white);border:1px solid var(--line-2);border-radius:4px;padding:12px 14px}
+input:focus,select:focus,textarea:focus{border-color:var(--ink);outline:none}
+textarea{min-height:82px;resize:vertical}
+input[type=range]{width:100%;accent-color:var(--pink)}
+.drop{border:1.5px dashed var(--line-2);border-radius:8px;background:var(--white);min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;padding:22px;text-align:center}
+.drop:hover,.drop.over{border-color:var(--pink);background:var(--pink-bg)}
+.drop img{max-height:280px;object-fit:contain;border-radius:4px}
+.drop .ic{width:60px;height:60px;border-radius:50%;background:var(--pink-bg);display:grid;place-items:center;color:var(--pink)}
+.drop .ic svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8}
+.drop b{font-size:17px;font-weight:700}
+.hint{font-size:13px;color:var(--soft);margin:0}
+.tips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tips span{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted);line-height:1.3}
+.tips span::before{content:"✓";color:var(--green);font-weight:800}
+@media (max-width:480px){.tips{grid-template-columns:1fr}}
+details.acc{border:1px solid var(--line);border-radius:4px}
+details.acc summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700}
+details.acc summary::-webkit-details-marker{display:none}
+details.acc summary .tg{font-size:11px;font-weight:700;color:var(--pink);border:1px solid var(--pink);padding:1px 6px;border-radius:2px;letter-spacing:.06em}
+details.acc summary::after{content:"›";margin-left:auto;font-size:22px;line-height:1;color:var(--soft);transform:rotate(90deg);transition:.2s}
+details.acc[open] summary::after{transform:rotate(-90deg)}
+details.acc > div{padding:4px 16px 16px;display:flex;flex-direction:column;gap:16px}
+
+/* ---------- buttons ---------- */
+.btn{border:1px solid var(--line-2);background:var(--white);border-radius:4px;padding:11px 22px;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.btn:hover{border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.pink{background:var(--pink);border-color:var(--pink);color:#fff}
+.btn.pink:hover{background:var(--pink-dk);border-color:var(--pink-dk)}
+.btn.sm{padding:7px 14px;font-size:12px}
+.btn.ghost{border-color:transparent;color:var(--pink);padding-inline:6px}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;vertical-align:-3px;margin-right:6px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row .sp{flex:1}
+.actbar{position:sticky;bottom:calc(var(--tabh) + env(safe-area-inset-bottom,0px));z-index:40;background:var(--white);box-shadow:0 -4px 14px rgba(0,0,0,.06);padding:12px 24px;display:flex;align-items:center;gap:12px}
+@media (max-width:820px){.actbar{padding:10px 16px}}
+.actbar .sum{flex:1;min-width:0;display:flex;flex-direction:column}
+.actbar .sum b{font-size:16px;font-weight:800}
+.actbar .sum span{font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actbar .btn{min-width:150px}
+@media (max-width:420px){.actbar .btn{min-width:0;padding-inline:16px}}
+
+/* ---------- summary (price-details style) ---------- */
+.co{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start}
+@media (max-width:900px){.co{grid-template-columns:minmax(0,1fr)}}
+.item{display:flex;gap:14px;border:1px solid var(--line);border-radius:4px;padding:12px}
+.item img{width:110px;height:138px;object-fit:cover;border-radius:2px;flex:0 0 110px;background:var(--canvas)}
+.item .if{display:flex;flex-direction:column;gap:4px;min-width:0}
+.item .if b{font-size:16px;font-weight:700}
+.item .if span{font-size:14px;color:var(--muted)}
+.item .if .pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.item .if .pills i{font-style:normal;font-size:12px;font-weight:700;background:var(--canvas);padding:3px 8px;border-radius:2px}
+.pd{border:1px solid var(--line);border-radius:4px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.pd .t{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.pd .l{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--ink-2)}
+.pd .l span:last-child{text-align:right;min-width:0}
+.pd .l .g{color:var(--green)}
+.pd .tot{border-top:1px solid var(--line);padding-top:12px;font-weight:800;font-size:15px;color:var(--ink)}
+.status{font-size:14px;margin:0;color:var(--soft)}
+.status.ok{color:var(--green)}.status.err{color:var(--err)}
+.meter{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pink),var(--orange));transition:width .4s}
+
+/* ---------- shots ---------- */
+.shim{position:absolute;inset:0;background:linear-gradient(100deg,#F0F0F2 30%,#FAFAFB 50%,#F0F0F2 70%);background-size:220% 100%;animation:sh 1.4s linear infinite}
+@keyframes sh{to{background-position:-220% 0}}
+@media (prefers-reduced-motion:reduce){.shim{animation:none}.tile,.cat .face,.sel{transition:none}}
+.ldtx{position:absolute;inset:auto 0 12px;text-align:center;font-size:12.5px;font-weight:700;color:var(--soft)}
+.heart{all:unset;cursor:pointer;position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--ink)}
+.heart svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+.heart.on{color:var(--pink)}.heart.on svg{fill:currentColor}
+.heart:focus-visible{outline:2px solid var(--pink)}
+.tile .dlb{all:unset;cursor:pointer;margin-top:8px;border:1px solid var(--line-2);border-radius:4px;text-align:center;padding:7px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.tile .dlb:hover{border-color:var(--ink)}
+.tile .dlb:focus-visible{outline:2px solid var(--pink)}
+.tile.fail .im{display:grid;place-items:center;color:var(--err);font-size:13px;padding:16px;text-align:center;font-weight:600}
+.empty{background:var(--white);padding:60px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty .gem{width:70px;height:70px;border-radius:50%;background:var(--pink-bg);display:grid;place-items:center;color:var(--pink);font:800 30px/1 var(--font)}
+.empty b{font-size:20px;font-weight:800}
+.empty p{margin:0;color:var(--soft);max-width:40ch}
+.fbar{background:var(--white);padding:12px 24px;display:flex;align-items:center;gap:10px;overflow-x:auto;border-bottom:1px solid var(--line)}
+@media (max-width:820px){.fbar{padding:10px 16px}}
+.fbar .lab{white-space:nowrap}
+
+/* ---------- product detail (lightbox) ---------- */
+dialog.pdp{border:0;padding:0;margin:0;width:100vw;height:100vh;max-width:100vw;max-height:100vh;background:var(--white);color:var(--ink)}
+dialog.pdp::backdrop{background:rgba(40,44,63,.6)}
+.pdpin{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);height:100%;overflow:auto}
+@media (max-width:860px){.pdpin{grid-template-columns:minmax(0,1fr);display:block}}
+.pdtop{position:sticky;top:0;z-index:5;background:var(--white);display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 10px max(12px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);grid-column:1/-1}
+.pdtop b{font-size:16px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icb{all:unset;cursor:pointer;width:40px;height:40px;display:grid;place-items:center;border-radius:50%}
+.icb:hover{background:var(--canvas)}
+.icb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8}
+.icb:focus-visible{outline:2px solid var(--pink)}
+.stage{background:var(--canvas);display:flex;align-items:center;justify-content:center;padding:16px;min-height:0}
+.cmp{position:relative;user-select:none;touch-action:none;max-width:100%}
+.cmp img{display:block;max-width:100%;max-height:calc(100vh - 110px)}
+@media (max-width:860px){.cmp img{max-height:64vh}}
+.cmp .before{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;clip-path:inset(0 50% 0 0)}
+.cmp .handle{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--pink);transform:translateX(-1px)}
+.cmp .handle::after{content:"‹ ›";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;border-radius:50%;background:var(--pink);color:#fff;display:grid;place-items:center;font-weight:800}
+.cmp .lb{position:absolute;bottom:10px;background:rgba(40,44,63,.75);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 8px;border-radius:2px}
+.info{padding:24px max(24px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) 24px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.info h2{margin:0;font:700 24px/1.2 var(--font)}
+.info .ds{margin:-12px 0 0;font-size:18px;color:var(--soft)}
+.info .rule{border-top:1px solid var(--line)}
+.info .bb{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.info .bb .btn{padding:14px 10px}
+.info pre{white-space:pre-wrap;font:400 12.5px/1.5 var(--font);color:var(--muted);background:var(--canvas);padding:12px;margin:0;max-height:180px;overflow:auto;border-radius:4px}
+.dets{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 12px;font-size:14px;margin:0}
+.dets dt{color:var(--soft)}.dets dd{margin:0;font-weight:600}
+
+/* ---------- brand / settings ---------- */
+.bkprev{width:100%;max-width:100%;aspect-ratio:4/5;border-radius:4px;background:var(--canvas)}
+.logo-up{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo-up img{height:44px;max-width:120px;object-fit:contain;border:1px solid var(--line);border-radius:4px;background:repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/10px 10px}
+.prof{display:flex;gap:14px;align-items:center}
+.prof .av{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#FF3F6C,#FF905A);color:#fff;display:grid;place-items:center;font:800 24px/1 var(--font)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stats div{border:1px solid var(--line);border-radius:4px;padding:14px;text-align:center}
+.stats b{display:block;font-size:26px;font-weight:800;color:var(--pink);font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;font-weight:700;color:var(--soft);letter-spacing:.06em;text-transform:uppercase}
+.keyrow{display:flex;gap:8px}.keyrow input{flex:1;min-width:0}
+/* every page: one continuous white surface, hairline dividers instead of grey gaps */
+body{background:var(--white)}
+main{padding-bottom:calc(var(--tabh) + 32px + env(safe-area-inset-bottom,0px))}
+.view{gap:0}
+.grid{padding:20px 24px 24px}
+@media (max-width:820px){.grid{padding:0}}
+.two,.co{gap:0}
+.steps,.fbar{border-bottom:0}
+/* tighter rhythm: less air above/below headings, fields and sections */
+main{padding-top:8px}
+@media (max-width:820px){main{padding-top:0}}
+.blk{padding:14px 24px;gap:12px}
+@media (max-width:820px){.blk{padding:12px 16px;gap:10px}}
+.h small{margin-top:2px}
+.field{gap:6px}
+.steps{padding:10px 16px}
+.hero{padding:20px 28px}
+@media (max-width:820px){.hero{padding:16px}}
+.hero h1{margin:4px 0 2px}
+.hero .offers{margin-top:10px}
+.grid{padding:4px 24px 14px}
+@media (max-width:820px){.grid{padding:0}}
+.fbar{padding:6px 24px 10px}
+@media (max-width:820px){.fbar{padding:4px 16px 8px}}
+.drop{min-height:240px}
+.tips{margin-top:-2px}
+.sizes{gap:10px}
+.size{padding:10px 8px}
+.cat{gap:6px}
+.cat .sb{margin-top:-4px}
+.cats{gap:14px}
+@media (max-width:560px){.cats{gap:10px 8px}}
+.stats div{padding:10px}
+.stats b{font-size:24px}
+.prof{gap:12px}
+.prof .av{width:50px;height:50px;font-size:21px}
+.keycard{padding:12px 14px}
+.empty{padding:40px 20px}
+.info{gap:14px}
+.info .ds{margin-top:-10px}
+details.acc summary{padding:12px 14px}
+details.acc > div{padding:2px 14px 14px;gap:12px}
+#v-create{padding-bottom:76px}
+/* phone listing grid: every tile fully boxed by hairlines, like a shopping app listing */
+@media (max-width:820px){
+  .grid{gap:0!important;row-gap:0!important;background:none!important;border-top:1px solid var(--line);border-bottom:0}
+  .grid > .tile{border-bottom:1px solid var(--line)}
+  .grid > .tile:nth-child(odd){border-right:1px solid var(--line)}
+  .grid > .tile:only-child{border-right:1px solid var(--line)}
+  .grid:empty{border:0}
+}
+.savebar{display:flex;align-items:center;gap:12px;margin:6px 24px 10px;padding:12px 14px;border:1px solid #FFD2C2;background:#FFF5F0;border-radius:6px}
+@media (max-width:820px){.savebar{margin:6px 16px 10px}}
+.sb-ic{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:var(--orange);color:#fff;font-weight:800;display:grid;place-items:center}
+.sb-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.sb-tx b{font-size:14.5px;font-weight:700}
+.sb-tx span{font-size:12.5px;color:var(--soft)}
+dialog.savedlg{border:0;padding:0;border-radius:10px;width:min(440px,calc(100vw - 32px));box-shadow:0 20px 60px rgba(40,44,63,.3);color:var(--ink)}
+dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
+.sd-in{position:relative;padding:28px 24px 20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+.sd-x{position:absolute;top:8px;right:8px}
+.sd-badge{width:54px;height:54px;border-radius:50%;background:var(--pink-bg);color:var(--pink);font:800 26px/54px var(--font)}
+.sd-in h2{margin:4px 0 0;font:800 20px/1.25 var(--font)}
+.sd-sub{margin:0;color:var(--soft);font-size:14px;max-width:34ch}
+.sd-thumbs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:6px 0}
+.sd-thumbs img{width:56px;height:56px;object-fit:cover;border-radius:4px;border:1px solid var(--line);background:var(--canvas)}
+.sd-thumbs span{width:56px;height:56px;border-radius:4px;background:var(--canvas);display:grid;place-items:center;font-weight:800;color:var(--soft);font-size:14px}
+.sd-main{width:100%;padding:14px}
+.sd-in .meter{width:100%}
+.sd-skip{font-size:13.5px}
+.uchip{all:unset;cursor:pointer;margin-left:auto;display:flex;align-items:center;gap:10px;padding:4px 6px 4px 4px;border-radius:24px;max-width:46vw}
+.uchip:hover{background:var(--canvas)}
+.uchip:focus-visible{outline:2px solid var(--pink)}
+.uav{width:36px;height:36px;flex:0 0 36px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--canvas);color:var(--ink);border:1.5px solid var(--line-2)}
+.uav.in{border-color:var(--pink);background:linear-gradient(135deg,#FF3F6C,#FF905A);color:#fff;font:800 15px/1 var(--font)}
+.uav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+.uav img{width:100%;height:100%;object-fit:cover}
+.utx{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.utx b{font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.utx small{font-size:11.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:820px){.utx{display:none}.uchip{padding:2px}}
+.acct{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.acct .dets dd{overflow-wrap:anywhere}
+
+/* login gate */
+.gate{position:fixed;inset:0;z-index:300;background:var(--white);overflow:auto;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.gate-hero{background:linear-gradient(120deg,#FFE3EA 0%,#FFEFD9 60%,#FFF7EC 100%);padding:34px 20px 70px;text-align:center}
+.gate-hero .lg{font:800 30px/1 var(--font);letter-spacing:-.3px;color:var(--ink)}
+.gate-hero .lg span{color:var(--pink)}
+.gate-hero p{margin:10px auto 0;color:var(--muted);font-size:15px;max-width:34ch}
+.gate-hero .icons{display:flex;justify-content:center;gap:10px;margin-top:18px}
+.gate-hero .icons span{width:58px;height:58px;border-radius:12px;background:var(--white);display:grid;place-items:center;box-shadow:0 4px 12px rgba(255,63,108,.12)}
+.gate-hero .icons svg{width:46px;height:46px}
+.gate-card{background:var(--white);width:min(420px,calc(100% - 32px));margin:-44px auto 24px;padding:26px 24px;border-radius:6px;box-shadow:0 6px 24px rgba(40,44,63,.10);display:flex;flex-direction:column;gap:14px}
+.gate-card h2{margin:0;font:800 20px/1.2 var(--font);color:var(--ink)}
+.gate-card h2 small{font-weight:400;font-size:15px;color:var(--soft)}
+.gbtn{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;border:1px solid var(--line-2);border-radius:4px;padding:13px 16px;font-size:15px;font-weight:700;color:var(--ink);background:var(--white)}
+.gbtn:hover{border-color:var(--ink)}
+.gbtn:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+.gbtn[disabled]{opacity:.55;cursor:wait}
+.gbtn svg{width:20px;height:20px}
+#gateErr{overflow-wrap:anywhere}
+.gate-card .terms{font-size:12.5px;color:var(--soft);margin:0}
+.gate-card .terms b{color:var(--pink);font-weight:700}
+.gate-load{margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--soft);font-weight:600}
+.spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--pink);border-radius:50%;animation:spn .9s linear infinite}
+@keyframes spn{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.prof .av img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.prof .av{overflow:hidden}
+
+/* jewellery icons on category tiles */
+.cat .face{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;overflow:hidden}
+.cat .face svg{width:82%;margin-top:-8%;height:auto;max-width:100%;filter:drop-shadow(0 3px 4px rgba(120,80,20,.18));transition:transform .25s}
+.cat:hover .face svg{transform:scale(1.06)}
+.cat .face .dv{position:absolute;left:0;right:0;bottom:6px;font:400 12.5px/1 var(--deva);color:var(--muted);opacity:.85}
+@media (prefers-reduced-motion:reduce){.cat .face svg{transition:none}}
+
+.grid{row-gap:16px}
+@media (max-width:820px){.grid{row-gap:1px}}
+.size{justify-content:flex-end;min-width:110px}
+.actbar{position:fixed;left:0;right:0;bottom:calc(var(--tabh) + env(safe-area-inset-bottom,0px));border-top:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px),calc((100% - 1240px)/2 + 40px));padding-right:max(16px,env(safe-area-inset-right,0px),calc((100% - 1240px)/2 + 40px))}
+#v-create{padding-bottom:84px}
+.keycard{display:flex;align-items:center;gap:14px;border:1px solid #BFE9DD;background:#EFFAF6;border-radius:6px;padding:14px 16px}
+.kc-ic{width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-weight:800}
+.kc-tx{display:flex;flex-direction:column;min-width:0;flex:1}
+.kc-tx b{font-size:15px;font-weight:700}
+.kc-tx span{font-size:13px;color:var(--soft);font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vbadge{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green);border:1px solid var(--green);border-radius:2px;padding:2px 8px;white-space:nowrap}
+.keycard.unv{border-color:#FFD9C2;background:#FFF6F0}
+.keycard.unv .kc-ic{background:var(--orange)}
+.keycard.unv .vbadge{color:var(--orange);border-color:var(--orange)}
+.tlink{all:unset;cursor:pointer;font-size:14px;font-weight:700;color:var(--pink)}
+.tlink:hover{text-decoration:underline}
+.tlink:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+.tlink.muted{color:var(--soft)}
+.tlink.danger{color:var(--err)}
+
+/* ---------- toast ---------- */
+.toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabh) + 86px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:200;width:max-content;max-width:calc(100vw - 32px)}
+.toast{background:var(--ink);color:#fff;padding:12px 18px;border-radius:4px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);animation:up .25s ease both}
+.toast.err{background:#B42318}
+@keyframes up{from{opacity:.001;transform:translateY(8px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
-<div class="app">
 
-  <header>
-    <p class="eyebrow">Product Photography · Batch Upload</p>
-    <h1>SKU → Drive Uploader</h1>
-    <p class="sub">Ek folder ya SKU ka naam do, 2 ho ya 20 — jitni images chaho add karo, aur seedhe apne Google Drive ke us naam ki folder me upload kar do.</p>
-
-  </header>
-
-  <div class="panel">
-    <label class="field-label" for="folderName">Folder / SKU Name</label>
-    <input type="text" id="folderName" placeholder="jaise: SKU-1042 ya Summer-Collection-2026">
-
-    <div class="toggle-row">
-      <input type="checkbox" id="renameToggle" checked>
-      <label for="renameToggle">Upload karte waqt images ko SKU-1, SKU-2... naam se rename karo</label>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<linearGradient id="zg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF0BE"/><stop offset=".35" stop-color="#E4B553"/><stop offset=".7" stop-color="#A06C1E"/><stop offset="1" stop-color="#F3D27E"/></linearGradient>
+<linearGradient id="zs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".45" stop-color="#C9CED6"/><stop offset=".8" stop-color="#7F8794"/><stop offset="1" stop-color="#E3E6EA"/></linearGradient>
+<radialGradient id="z-ruby" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#FFD3DA"/><stop offset=".35" stop-color="#D4143C"/><stop offset="1" stop-color="#5E0016"/></radialGradient>
+<radialGradient id="z-emerald" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#D2FFE8"/><stop offset=".35" stop-color="#1E9E62"/><stop offset="1" stop-color="#083F25"/></radialGradient>
+<radialGradient id="z-pearl" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#F1EBE1"/><stop offset="1" stop-color="#BFB09A"/></radialGradient>
+<radialGradient id="z-dia" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#E2ECF6"/><stop offset="1" stop-color="#8FA6BE"/></radialGradient>
+<radialGradient id="z-black" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#7A7A7A"/><stop offset=".5" stop-color="#1A1A1A"/><stop offset="1" stop-color="#000"/></radialGradient>
+</defs></svg>
+<div class="gate" id="gate" hidden>
+  <div class="gate-load" id="gateLoad"><span class="spin"></span>Checking login…</div>
+  <div id="gateLogin" hidden>
+    <div class="gate-hero">
+      <div class="lg">OMKA<span>studio</span></div>
+      <p>Turn one photo into a full jewellery catalogue. Studio and model shots, made with AI.</p>
+      <div class="icons" id="gateIcons"></div>
     </div>
-
-    <div class="drop-zone" id="dropZone">
-      <strong>Click karo</strong> ya images yahan drag-drop karo — jitni baar chaho, add hoti jayengi
+    <div class="gate-card">
+      <h2>Login <small>or</small> Signup</h2>
+      <button type="button" class="gbtn" id="gBtn"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg><span id="gBtnTx">Continue with Google</span></button>
+      <p class="status" id="gateErr" role="alert"></p>
+      <button type="button" class="tlink muted" id="gateLocal" hidden>Continue without login</button>
+      <p class="terms">By continuing, you agree to OMKA Studio's <b>Terms of Use</b> and <b>Privacy Policy</b>.</p>
     </div>
-    <input type="file" id="fileInput" accept="image/*" multiple hidden>
-
-    <div class="thumb-grid" id="thumbGrid"></div>
-    <div class="count" id="fileCount">0 images added</div>
   </div>
-
-  <div class="actions">
-    <button class="btn secondary" id="connectBtn">Connect Google Drive</button>
-    <button class="btn" id="uploadBtn" disabled>Upload to Drive</button>
-  </div>
-
-  <div class="status-log" id="statusLog"></div>
-
-  <footer>Images seedhe browser se tumhare Google Drive me jaati hain — koi third-party storage nahi.</footer>
 </div>
+<header class="top">
+  <div class="topin">
+    <div class="logo"><div><b>OMKA<span>studio</span></b><small>AI JEWELLERY PHOTOSHOOT</small></div></div>
+    <nav class="tnav" aria-label="Menu">
+      <button type="button" data-view="create" aria-current="page">Create</button>
+      <button type="button" data-view="gallery">Gallery</button>
+      <button type="button" data-view="brand">Brand Kit</button>
+      <button type="button" data-view="settings">Settings</button>
+    </nav>
+    <button type="button" class="uchip" id="uChip" data-view="settings" aria-label="Profile kholiye">
+      <span class="uav" id="uAv"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span>
+      <span class="utx"><b id="uName">Profile</b><small id="uMail">Not logged in</small></span>
+    </button>
+  </div>
+</header>
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<main>
+  <!-- ========================= CREATE ========================= -->
+  <div class="view" id="v-create">
+    <div class="steps" id="steps">
+      <button type="button" class="st now" data-go="1">Jewellery</button><span class="dash"></span>
+      <button type="button" class="st" data-go="2">Style</button><span class="dash"></span>
+      <button type="button" class="st" data-go="3">Details</button><span class="dash"></span>
+      <button type="button" class="st" data-go="4">Shoot</button>
+    </div>
+
+    <!-- STEP 1 -->
+    <section class="view" data-step="1">
+      <div class="hero">
+        <div>
+          <span class="tagline">AI Photoshoot Studio</span>
+          <h1>One photo, <span>a full catalogue</span></h1>
+          <p>Upload a phone photo and get studio, lifestyle and model shots. No photographer, no studio costs.</p>
+          <div class="offers"><span class="offer"><b>11+</b> shot styles</span><span class="offer"><b>4</b> styles at once</span><span class="offer">Logo watermark <b>FREE</b></span></div>
+        </div>
+        <div class="big">30<small>SECOND MEIN</small></div>
+      </div>
+      <div class="blk">
+        <h2 class="h">Select jewellery type<small>Which piece do you want to photograph?</small></h2>
+        <div class="cats" id="cats"></div>
+      </div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section class="view" data-step="2" hidden>
+      <div class="blk">
+        <h2 class="h">Choose your look<small>Pick one or more styles (max 4). Each style gets its own shot.</small></h2>
+        <div class="chips" id="grpChips"></div>
+      </div>
+      <div class="grid" id="styles"></div>
+      <div class="blk" id="customForm" hidden>
+        <h3 class="h2">Create your own style</h3>
+        <div class="g2">
+          <div class="field"><label class="lab" for="cName">Style name</label><input type="text" id="cName" placeholder="e.g. Lotus Pond"></div>
+          <div class="field"><span class="lab">Type</span><div class="chips"><button type="button" class="chip" id="cModel" aria-pressed="false">Worn by a model</button></div></div>
+        </div>
+        <div class="field"><label class="lab" for="cDesc">Describe the scene</label><textarea id="cDesc" placeholder="e.g. jewellery on a pink lotus leaf, morning sun on water, soft blur behind"></textarea></div>
+        <div class="row"><button type="button" class="btn pink sm" id="cSave">Save style</button><button type="button" class="btn sm" id="cCancel">Cancel</button></div>
+      </div>
+      <div class="blk">
+        <h2 class="h">Select size</h2>
+        <div class="sizes" id="sizes"></div>
+      </div>
+    </section>
+
+    <!-- STEP 3 -->
+    <section class="view" data-step="3" hidden>
+      <div class="two">
+        <div class="blk">
+          <h2 class="h">Upload photo<small>Design, stones and enamel stay exactly the same. Only the setting changes.</small></h2>
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a jewellery photo">
+            <img id="srcPrev" alt="Aapki jewellery" hidden>
+            <span class="ic" id="dropIc"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></span>
+            <b id="dropBig">Upload a photo</b>
+            <span class="hint" id="dropHint">Tap to choose, or drag a photo here · JPG / PNG</span>
+          </div>
+          <input type="file" id="file" accept="image/*" hidden>
+          <div class="tips"><span>Daylight, no flash</span><span>Whole piece in frame</span><span>Sharp focus on stones</span></div>
+        </div>
+        <div class="blk">
+          <h2 class="h">Details</h2>
+          <div class="g2">
+            <div class="field"><label class="lab" for="metal">Metal</label>
+              <select id="metal">
+                <option value="22k yellow gold">Gold 22K</option><option value="18k gold with diamonds">Diamond 18K</option>
+                <option value="kundan">Kundan</option><option value="polki uncut diamond">Polki</option>
+                <option value="antique temple gold">Temple</option><option value="rose gold">Rose gold</option>
+                <option value="platinum">Platinum</option><option value="sterling silver">Silver 925</option>
+                <option value="oxidised silver">Oxidised</option><option value="american diamond (CZ) with gold plating">American Diamond</option>
+                <option value="">Same as in photo</option>
+              </select></div>
+            <div class="field"><span class="lab">Shots per style</span><div class="round" id="perSeg"></div></div>
+          </div>
+          <div class="field"><span class="lab">Quality</span>
+            <div class="chips" id="qualSeg"><button type="button" class="chip" data-q="std" aria-pressed="true">Standard · fast</button><button type="button" class="chip" data-q="ultra" aria-pressed="false">Ultra HD · extra detail</button></div></div>
+          <div class="field" id="modelBox" hidden>
+            <span class="lab">Model</span>
+            <div class="chips" id="skinSeg"></div>
+            <div class="g2">
+              <select id="outfit" aria-label="Outfit">
+                <option value="auto">Outfit: match the style</option><option value="a rich red bridal lehenga">Red bridal lehenga</option>
+                <option value="an emerald green Kanjeevaram silk saree">Kanjeevaram saree</option><option value="a pastel festive anarkali">Pastel anarkali</option>
+                <option value="an ivory chikankari kurta">Chikankari</option><option value="a black off-shoulder evening gown">Black gown</option>
+                <option value="a minimal white satin top">Minimal white</option>
+              </select>
+              <select id="hair" aria-label="Hair">
+                <option value="auto">Hair: auto</option><option value="hair in an elegant low bun with jasmine gajra">Bun + gajra</option>
+                <option value="soft open waves">Open waves</option><option value="sleek pulled-back hair">Sleek pulled back</option>
+              </select>
+            </div>
+          </div>
+          <details class="acc">
+            <summary><span class="tg">PRO</span>Lighting, angle and background</summary>
+            <div>
+              <div class="field"><span class="lab">Lighting</span><div class="chips" id="lightSeg"></div></div>
+              <div class="field"><span class="lab">Camera angle</span><div class="chips" id="angleSeg"></div></div>
+              <div class="field"><span class="lab">Background tone <em>(product shots)</em></span><div class="round" id="toneSw"></div></div>
+            </div>
+          </details>
+          <div class="field"><label class="lab" for="extra">Creative direction <em>(optional)</em></label>
+            <textarea id="extra" placeholder="e.g. Akshaya Tritiya campaign, maroon and gold tones, soft bokeh behind"></textarea></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 4 -->
+    <section class="view" data-step="4" hidden>
+      <div class="co">
+        <div class="blk">
+          <h2 class="h">Review your shoot</h2>
+          <div class="item">
+            <img id="revImg" alt="Aapki jewellery">
+            <div class="if"><b id="revTitle"></b><span id="revSub"></span><div class="pills" id="revPills"></div></div>
+          </div>
+          <div class="meter" id="meter" hidden><i></i></div>
+          <p class="status" id="shootStatus" role="status"></p>
+        </div>
+        <div class="blk">
+          <div class="pd" id="pd"></div>
+        </div>
+      </div>
+      <div class="blk" id="resHead" hidden><h2 class="h">Your shots<small>Tap a photo to view it large, compare or refine it.</small></h2></div>
+      <div class="savebar" hidden><span class="sb-ic">!</span><div class="sb-tx"><b class="sbCount"></b><span>Download them to your phone or computer before you leave.</span></div><button type="button" class="btn pink sm sbBtn">Download all</button></div>
+      <div class="grid" id="results"></div>
+    </section>
+
+    <div class="actbar">
+      <div class="sum"><b id="sumB">Choose jewellery</b><span id="sumS">Step 1 of 4</span></div>
+      <button type="button" class="btn" id="backBtn" hidden>Back</button>
+      <button type="button" class="btn pink" id="nextBtn" disabled>Continue</button>
+    </div>
+  </div>
+
+  <!-- ========================= GALLERY ========================= -->
+  <div class="view" id="v-gallery" hidden>
+    <div class="blk"><h2 class="h">My Gallery<small id="galSub">All photos are saved in this browser.</small></h2></div>
+    <div class="fbar"><span class="lab">Filter</span><div class="chips" id="filters" style="flex-wrap:nowrap"></div><span style="flex:1"></span><button type="button" class="btn pink sm" id="zipBtn">Download ZIP</button></div>
+    <div class="savebar" hidden><span class="sb-ic">!</span><div class="sb-tx"><b class="sbCount"></b><span>Download them to your phone or computer before you leave.</span></div><button type="button" class="btn pink sm sbBtn">Download all</button></div>
+    <div class="empty" id="galEmpty"><span class="gem">O</span><b>Your gallery is empty</b><p>Go to Create and start your first photoshoot. Every photo you make will be saved here.</p><button type="button" class="btn pink" data-view="create">Start photoshoot</button></div>
+    <div class="grid" id="galGrid"></div>
+  </div>
+
+  <!-- ========================= BRAND ========================= -->
+  <div class="view" id="v-brand" hidden>
+    <div class="blk"><h2 class="h">Brand Kit<small>Your logo or shop name is added to every photo you download.</small></h2></div>
+    <div class="two">
+      <div class="blk">
+        <div class="chips"><button type="button" class="chip" id="bkOn" aria-pressed="false">Watermark OFF</button></div>
+        <div class="field"><label class="lab" for="bkName">Shop / brand name</label><input type="text" id="bkName" placeholder="e.g. Shree Ganesh Jewellers"></div>
+        <div class="field"><span class="lab">Logo <em>(transparent PNG best)</em></span>
+          <div class="logo-up"><img id="bkLogoPrev" alt="Logo" hidden><button type="button" class="btn sm" id="bkLogoBtn">Upload logo</button><button type="button" class="btn ghost sm" id="bkLogoDel" hidden>Remove</button></div>
+          <input type="file" id="bkLogo" accept="image/*" hidden></div>
+        <div class="field"><span class="lab">Position</span><div class="chips" id="bkPos"></div></div>
+        <div class="g2">
+          <div class="field"><label class="lab" for="bkSize">Size</label><input type="range" id="bkSize" min="6" max="30" value="14"></div>
+          <div class="field"><label class="lab" for="bkOp">Opacity</label><input type="range" id="bkOp" min="20" max="100" value="70"></div>
+        </div>
+        <div class="field"><span class="lab">Download format</span><div class="chips" id="bkFmt"><button type="button" class="chip" data-f="png" aria-pressed="true">PNG · best quality</button><button type="button" class="chip" data-f="jpg" aria-pressed="false">JPG · small file</button></div></div>
+      </div>
+      <div class="blk">
+        <span class="lab">Live preview</span>
+        <canvas class="bkprev" id="bkCanvas" width="800" height="1000"></canvas>
+        <p class="hint">The preview uses a shot from your gallery.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= SETTINGS ========================= -->
+  <div class="view" id="v-settings" hidden>
+    <div class="blk">
+      <div class="prof"><span class="av" id="profAv">O</span><div style="min-width:0;flex:1"><b style="font-size:18px" id="profName">OMKA Studio</b><p class="sub" id="profEmail" hidden></p><p class="sub" id="profSub">Connect your API key</p></div></div>
+      <div class="stats" id="stats"></div>
+      <div class="acct" id="acct" hidden>
+        <dl class="dets">
+          <dt>Gmail</dt><dd id="acEmail"></dd>
+          <dt>Login</dt><dd>Google account</dd>
+          <dt>Member since</dt><dd id="acSince"></dd>
+          <dt>Photos</dt><dd>Saved in this browser</dd>
+        </dl>
+        <div class="row"><button type="button" class="tlink danger" id="logoutBtn">Logout</button></div>
+      </div>
+    </div>
+    <div class="blk">
+      <h2 class="h">Google Gemini API key</h2>
+      <div class="keycard" id="keyCard" hidden>
+        <span class="kc-ic" aria-hidden="true">✓</span>
+        <div class="kc-tx"><b>API key saved</b><span id="keyMask"></span></div>
+        <span class="vbadge" id="vBadge">Verified</span>
+      </div>
+      <div class="row" id="keyLinks" hidden>
+        <button type="button" class="tlink" id="changeKey">Change key</button>
+        <button type="button" class="tlink" id="reverify">Verify again</button>
+        <span class="status" id="keyStatus2"></span>
+      </div>
+      <div class="field" id="keyEdit">
+        <div class="keyrow"><input type="password" id="apiKey" placeholder="AIza..." spellcheck="false" autocomplete="off"><button type="button" class="btn sm" id="showKey">Show</button></div>
+        <div class="row"><button type="button" class="btn pink sm" id="saveKey">Save &amp; verify</button><button type="button" class="tlink muted" id="cancelKey" hidden>Cancel</button><span class="status" id="keyStatus"></span></div>
+        <p class="hint">To get a key, sign in at aistudio.google.com/apikey with your Google account and click "Create API key". Image models usually need billing turned on. Your key stays in this browser and is sent only to Google.</p>
+      </div>
+    </div>
+    <div class="blk">
+      <h2 class="h">AI models</h2>
+      <div class="g2">
+        <div class="field"><label class="lab" for="mStd">Standard</label><select id="mStd"><option>gemini-2.5-flash-image</option><option>gemini-3-pro-image-preview</option></select></div>
+        <div class="field"><label class="lab" for="mUltra">Ultra HD</label><select id="mUltra"><option>gemini-3-pro-image-preview</option><option>gemini-2.5-flash-image</option></select></div>
+      </div>
+      <div class="row"><button type="button" class="btn sm" id="findModels">Find my image models</button><span class="status" id="modelStatus"></span></div>
+      <div class="field"><label class="lab" for="conc">Shots at the same time</label>
+        <select id="conc"><option value="1">1 · free / limited key</option><option value="2">2</option><option value="3" selected>3 · recommended</option><option value="4">4</option></select></div>
+    </div>
+    <div class="blk">
+      <h2 class="h">Storage</h2>
+      <p class="hint" id="storeHint">All photos are saved only in this browser.</p>
+      <div class="row"><button type="button" class="tlink danger" id="wipe">Clear gallery</button><button type="button" class="tlink danger" id="wipeYes" hidden>Yes, delete everything</button><button type="button" class="tlink muted" id="wipeNo" hidden>Cancel</button><span class="status" id="wipeStatus"></span></div>
+    </div>
+  </div>
+</main>
+
+<nav class="tabs" aria-label="Menu">
+  <button type="button" data-view="create" aria-current="page"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg>Create</button>
+  <button type="button" data-view="gallery"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 16l5-5 4 4 3-3 5 5"/></svg>Gallery</button>
+  <button type="button" data-view="brand"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>Brand</button>
+</nav>
+
+<!-- ========================= PRODUCT DETAIL ========================= -->
+<dialog class="pdp" id="lb">
+  <div class="pdpin">
+    <div class="pdtop">
+      <button type="button" class="icb" id="lbClose" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <b id="lbBar"></b>
+      <button type="button" class="icb" id="lbFavTop" aria-label="Favourite"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9.2C1.6 7.3 4 4 7.4 4c2 0 3.6 1.2 4.6 2.8C13 5.2 14.6 4 16.6 4 20 4 22.4 7.3 21 10.8 19 15.6 12 20 12 20z"/></svg></button>
+    </div>
+    <div class="stage">
+      <div class="cmp" id="cmp">
+        <img id="lbAfter" alt="AI photo">
+        <img id="lbBefore" class="before" alt="Asli photo" hidden>
+        <span class="handle" id="cmpHandle" hidden></span>
+        <span class="lb" id="lblB" style="left:10px" hidden>ORIGINAL</span>
+        <span class="lb" id="lblA" style="right:10px" hidden>AI</span>
+      </div>
+    </div>
+    <div class="info">
+      <h2 id="lbTitle"></h2>
+      <p class="ds" id="lbSub"></p>
+      <div class="rule"></div>
+      <div class="chips"><button type="button" class="chip" id="cmpToggle" aria-pressed="false">Before / After compare</button></div>
+      <div class="bb">
+        <button type="button" class="btn pink" id="lbDl"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download</button>
+        <button type="button" class="btn" id="lbFav"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9.2C1.6 7.3 4 4 7.4 4c2 0 3.6 1.2 4.6 2.8C13 5.2 14.6 4 16.6 4 20 4 22.4 7.3 21 10.8 19 15.6 12 20 12 20z"/></svg>Favourite</button>
+      </div>
+      <button type="button" class="btn ghost sm" id="lbDlRaw" style="align-self:flex-start">Download without watermark</button>
+      <div class="rule"></div>
+      <div class="field">
+        <label class="lab" for="refineTx">Refine this photo</label>
+        <textarea id="refineTx" placeholder="e.g. make the background darker, add more sparkle to the necklace"></textarea>
+        <div class="row"><button type="button" class="btn sm" id="refineBtn">Refine</button><button type="button" class="btn sm" id="regenBtn">New version</button></div>
+        <p class="status" id="lbStatus"></p>
+      </div>
+      <div class="rule"></div>
+      <span class="lab">Photo details</span>
+      <dl class="dets" id="lbDets"></dl>
+      <details class="acc"><summary>View prompt</summary><div><pre id="lbPrompt"></pre></div></details>
+      <div class="row"><button type="button" class="btn ghost sm" id="lbDel">Delete photo</button><button type="button" class="btn pink sm" id="lbDelYes" hidden>Yes, delete</button></div>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="savedlg" id="saveDlg" aria-labelledby="sdTitle">
+  <div class="sd-in">
+    <button type="button" class="icb sd-x" id="sdClose" aria-label="Go back"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <span class="sd-badge">!</span>
+    <h2 id="sdTitle">Wait! Your photos aren't downloaded yet</h2>
+    <p class="sd-sub" id="sdSub"></p>
+    <div class="sd-thumbs" id="sdThumbs"></div>
+    <div class="meter" id="sdMeter" hidden><i></i></div>
+    <button type="button" class="btn pink sd-main" id="sdSave" autofocus>Download all</button>
+    <button type="button" class="tlink danger sd-skip" id="sdSkip">Leave without downloading</button>
+    <button type="button" class="tlink muted sd-skip" id="sdStay">Back to the website</button>
+  </div>
+</dialog>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
 <script>
-  // ======= ONE-TIME CONFIG =======
-  // Setup guide (upar) follow karke apna Client ID yahan paste karo:
-  const CONFIG = {
-    CLIENT_ID: "245734258376-c2me25jv1oqd47g4t2t72omfl5tsmfl4.apps.googleusercontent.com"
+(function(){
+"use strict";
+const log=(t,...a)=>{try{const c=window.console;const f=c&&(c[t]||c.log);if(typeof f==="function")f.apply(c,a);}catch(e){}};
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=m;$('#toasts').appendChild(t);setTimeout(()=>t.remove(),err?5500:2800);}
+function setS(el,m,k){el.textContent=m;el.className='status'+(k?' '+k:'');}
+function chipSeg(el,items,cur,on,cls){el.innerHTML='';items.forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.className=cls||'chip';b.textContent=l;b.dataset.v=v;b.setAttribute('aria-pressed',String(v===cur));b.onclick=()=>{[...el.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));on(v);};el.appendChild(b);});}
+
+/* =================== DATA =================== */
+const TYPES=[
+ {id:'set',nm:'Jewellery Set',dv:'सेट',sb:'Necklace + earrings',bg:'#FDE2E7',p:'jewellery set: a necklace with matching earrings',wear:'the necklace on her neck and the matching earrings on her ears'},
+ {id:'necklace',nm:'Necklace',dv:'हार',sb:'Rani haar, choker',bg:'#FFEBD6',p:'necklace',wear:'on her neck and collarbone'},
+ {id:'earring',nm:'Earrings',dv:'झुमके',sb:'Jhumkas, studs',bg:'#E3F1EC',p:'pair of earrings',wear:'on her ears, hair tucked behind the ear so they are fully visible'},
+ {id:'ring',nm:'Ring',dv:'अंगूठी',sb:'Solitaire, band',bg:'#E7E9F8',p:'ring',wear:'on the ring finger of a graceful hand with neat nude nails'},
+ {id:'bangles',nm:'Bangles',dv:'कंगन',sb:'Stack or single',bg:'#FFF3C9',p:'bangles',wear:'stacked on the wrist of a graceful hand'},
+ {id:'bracelet',nm:'Bracelet',dv:'ब्रेसलेट',sb:'Tennis, kada',bg:'#F1E4F7',p:'bracelet',wear:'on the wrist of a graceful hand'},
+ {id:'pendant',nm:'Pendant',dv:'लॉकेट',sb:'With chain',bg:'#DDF0F7',p:'pendant on a fine chain',wear:'on her neck on the fine chain, resting just below the collarbone'},
+ {id:'mangalsutra',nm:'Mangalsutra',dv:'मंगलसूत्र',sb:'Classic, modern',bg:'#F5E6DA',p:'mangalsutra',wear:'on her neck'},
+ {id:'payal',nm:'Payal',dv:'पायल',sb:'Anklet',bg:'#E9F3DF',p:'anklet (payal)',wear:'on the ankle of a bare foot with alta, elegant pose'},
+ {id:'tikka',nm:'Maang Tikka',dv:'टीका',sb:'Forehead jewellery',bg:'#FCE0D8',p:'maang tikka',wear:'on her forehead along the hair parting'},
+ {id:'nath',nm:'Nath',dv:'नथ',sb:'Nose ring',bg:'#E4E8EE',p:'nose ring (nath)',wear:'on her nose, close portrait'},
+ {id:'bridal',nm:'Bridal Set',dv:'दुल्हन',sb:'Complete bridal look',bg:'#FFDCE2',p:'complete bridal jewellery set',wear:'as a complete bridal look on neck, ears and forehead'}
+];
+const BUILTIN_STYLES=[
+ {id:'studio',nm:'Studio White',sb:'Catalog & Amazon ready',grp:'Product',flag:'Bestseller',use:'Amazon · Flipkart',pal:['#ffffff','#e9e6e2'],
+  p:'A clean luxury e-commerce studio product photograph on a seamless {tone} background, soft even lighting with a subtle natural contact shadow, the piece centred and fully visible.'},
+ {id:'macro',nm:'Macro',sb:'Close-up of stones and detail',grp:'Product',use:'Detail shot',pal:['#151212','#3a3330'],
+  p:'An extreme macro product photograph of the piece only, razor-sharp focus on gemstone facets, metal grain and hand craftsmanship, controlled specular highlights, shallow depth of field, {tone} background.'},
+ {id:'flatlay',nm:'Flat Lay',sb:'Top-down, on silk',grp:'Product',use:'Instagram',pal:['#e8dccb','#c8b296'],
+  p:'An overhead flat lay photograph of the piece arranged gracefully on softly draped silk in a {tone} shade, with one or two refined props such as a small brass bowl and dried rose buds.'},
+ {id:'display',nm:'Showroom',sb:'Velvet stand, spotlight',grp:'Product',use:'Store look',pal:['#201a18','#5c4a39'],
+  p:'The piece presented on a black velvet jewellery bust inside an upscale Indian jewellery showroom, warm focused spotlights, softly blurred glass display cases behind.'},
+ {id:'box',nm:'Gift Box',sb:'Velvet box, gifting',grp:'Product',use:'Gifting ads',pal:['#4b0f1b','#8c2234'],
+  p:'The piece resting in an open deep maroon velvet jewellery box with ivory satin lining, luxurious gifting mood, warm soft light, shallow depth of field.'},
+ {id:'marble',nm:'Marble & Rose',sb:'White marble, flowers',grp:'Lifestyle',flag:'New',use:'Instagram',pal:['#f2efec','#cfc6bf'],
+  p:'The piece on polished white Carrara marble with a few scattered rose petals and a sprig of jasmine, soft window daylight, airy and elegant.'},
+ {id:'festive',nm:'Festive',sb:'Diyas and marigolds',grp:'Lifestyle',flag:'Trending',use:'Diwali sale',pal:['#2a1206','#b8701a'],
+  p:'The piece on a carved brass thali surrounded by softly glowing diyas and marigold petals, warm golden bokeh in the background, festive Diwali mood.'},
+ {id:'heritage',nm:'Heritage',sb:'Rajasthani jharokha',grp:'Lifestyle',use:'Campaign',pal:['#6b3f22','#d49a5c'],
+  p:'The piece placed on the ledge of an ornate carved sandstone jharokha in a Rajasthani haveli, golden-hour sunlight with intricate lattice shadows.'},
+ {id:'bridal',nm:'Indian Bridal',sb:'Bride, lehenga, haveli',grp:'Model',model:true,flag:'Top pick',use:'Wedding season',pal:['#5c1019','#c79a54'],outfit:'a rich red embroidered bridal lehenga with a sheer dupatta',
+  p:'A high-end Indian bridal editorial photograph of a bride, carved haveli pillars and soft drapes behind her, warm golden light, magazine-cover quality.'},
+ {id:'modern',nm:'Modern Muse',sb:'Modern elegant look',grp:'Model',model:true,use:'Daily wear',pal:['#d8cdc3','#857a72'],outfit:'a minimal ivory satin top',
+  p:'A contemporary luxury fashion portrait, minimal styling, neutral tones, clean studio backdrop, soft directional light, modern editorial look.'},
+ {id:'closeup',nm:'Close-up',sb:'Worn, tight crop',grp:'Model',model:true,use:'Product page',pal:['#e6d2c2','#a9826a'],outfit:'an elegant silk saree',
+  p:'A tight close-up campaign photograph cropped on the area where the jewellery is worn, face partly out of frame, natural skin texture, soft flattering light; the jewellery fills most of the frame.'}
+];
+const SIZES=[{r:'1:1',nm:'Square',sb:'Insta · Amazon',w:34,h:34},{r:'4:5',nm:'Portrait',sb:'Insta post',w:30,h:38},{r:'3:4',nm:'Catalogue',sb:'Website',w:29,h:38},{r:'9:16',nm:'Story',sb:'Reel · Status',w:22,h:40},{r:'16:9',nm:'Banner',sb:'Website · ad',w:46,h:26}];
+const SKINS=[['fair','Fair'],['wheatish','Wheatish'],['dusky','Dusky'],['deep brown','Deep']];
+const LIGHTS=[['auto','Auto'],['soft diffused','Soft'],['dramatic low-key with sharp highlights','Dramatic'],['warm golden-hour','Golden hour'],['bright high-key','Bright']];
+const ANGLES=[['auto','Auto'],['straight-on eye level','Front'],['45-degree three-quarter','45°'],['top-down overhead','Top'],['low hero angle','Low']];
+const TONES=[['auto',''],['pure white','#ffffff'],['soft ivory','#efe6d6'],['blush pink','#efd3d0'],['deep black','#141111'],['royal maroon','#6a1626'],['emerald green','#1f4d3c'],['midnight blue','#1b2440']];
+const POSITIONS=[['br','Bottom right'],['bl','Bottom left'],['tr','Top right'],['c','Center'],['tile','Tile pattern']];
+const LOADING=['Setting up lights…','Polishing the stones…','Focusing the camera…','Retouching…','Final polish…'];
+
+
+/* =================== JEWELLERY ICONS (hand-drawn SVG) =================== */
+const ICONS=(function(){
+  const G='url(#zg)';
+  const qp=(t,a,b,c)=>[(1-t)*(1-t)*a[0]+2*(1-t)*t*b[0]+t*t*c[0],(1-t)*(1-t)*a[1]+2*(1-t)*t*b[1]+t*t*c[1]];
+  const gem=(x,y,r,k,ring=1.6,metal=G)=>`<circle cx="${x}" cy="${y}" r="${r+ring}" fill="${metal}"/><circle cx="${x}" cy="${y}" r="${r}" fill="url(#z-${k})"/>`;
+  const bead=(x,y,r,k)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="url(#z-${k})"/>`;
+  const curve=(a,b,c,w=3,col=G,extra='')=>`<path d="M${a} Q${b} ${c}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
+  const beads=(a,b,c,n,r,kinds,from=.08,to=.92,dy=0)=>{let o='';for(let i=0;i<n;i++){const t=from+(to-from)*i/(n-1),[x,y]=qp(t,a,b,c);o+=bead(x.toFixed(1),(y+dy).toFixed(1),r,kinds[i%kinds.length]);}return o;};
+  const drop=(x,y,sz,k,metal=G)=>{const d=(s)=>`M${x} ${y-s*1.25} C${x+s} ${y-s*.2} ${x+s} ${y+s} ${x} ${y+s} C${x-s} ${y+s} ${x-s} ${y-s*.2} ${x} ${y-s*1.25}Z`;return `<path d="${d(sz+1.8)}" fill="${metal}"/><path d="${d(sz)}" fill="url(#z-${k})"/>`;};
+  const svg=b=>`<svg viewBox="0 0 100 100" aria-hidden="true">${b}</svg>`;
+  const necklace=(a,b,c,big)=>{const [cx,cy]=qp(.5,a,b,c);return curve(a.join(' '),b.join(' '),c.join(' '),big?3.4:2.6)+beads(a,b,c,big?11:9,big?3:2.4,['pearl','ruby'])+gem(cx,cy+4,big?3.2:2.6,'dia')+drop(cx,cy+(big?16:13),big?7:5.5,'ruby');};
+  const jhumka=(x,y,s=1)=>{let o=`<circle cx="${x}" cy="${y}" r="${6.5*s}" fill="${G}"/>`+bead(x,y,4*s,'ruby')+`<path d="M${x} ${y+6*s} V${y+13*s}" stroke="${G}" stroke-width="${2*s}"/>`;
+    const t=y+13*s,bt=y+36*s,w=13*s;o+=`<path d="M${x-w} ${bt} Q${x-w} ${t} ${x} ${t} Q${x+w} ${t} ${x+w} ${bt}Z" fill="${G}"/>`;
+    o+=`<path d="M${x-w*.6} ${bt-6*s} Q${x} ${bt-12*s} ${x+w*.6} ${bt-6*s}" fill="none" stroke="#8A5A14" stroke-width="${1*s}" opacity=".55"/>`+bead(x,t+8*s,2.6*s,'emerald');
+    o+=`<rect x="${x-w-1}" y="${bt-1.5*s}" width="${2*w+2}" height="${3.6*s}" rx="${1.8*s}" fill="#B9862B"/>`;
+    for(let i=-2;i<=2;i++){const px=x+i*5.6*s;o+=`<path d="M${px} ${bt+2*s} V${bt+6*s}" stroke="${G}" stroke-width="${.9*s}"/>`+bead(px,bt+8.4*s,2.5*s,'pearl');}return o;};
+  return {
+    necklace:svg(necklace([16,18],[50,82],[84,18],true)),
+    earring:svg(jhumka(30,20)+jhumka(70,20)),
+    ring:svg(`<circle cx="50" cy="63" r="22" fill="none" stroke="${G}" stroke-width="6.5"/><circle cx="50" cy="63" r="19.2" fill="none" stroke="#FFF6D8" stroke-width="1" opacity=".7"/>`+
+      `<path d="M41 42 L46 49 H54 L59 42Z" fill="${G}"/><polygon points="36,33 43,23 57,23 64,33 50,49" fill="url(#z-dia)" stroke="#7F97AF" stroke-width="1"/>`+
+      `<path d="M36 33 H64 M43 23 L47 33 L50 23 L53 33 L57 23 M47 33 L50 49 L53 33" fill="none" stroke="#7F97AF" stroke-width=".8"/><path d="M60 18 l2 -5 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2z" fill="#fff"/>`),
+    bangles:svg([34,50,66].map((cy,i)=>`<ellipse cx="50" cy="${cy}" rx="31" ry="11" fill="none" stroke="${i%2?'#C3913A':G}" stroke-width="5.2"/>`+
+      [-16,0,16].map(dx=>bead(50+dx,(cy+11*Math.sqrt(1-(dx/31)**2)).toFixed(1),2.3,i===1?'emerald':'ruby')).join('')).join('')),
+    bracelet:svg(`<ellipse cx="50" cy="54" rx="33" ry="19" fill="none" stroke="${G}" stroke-width="3"/>`+
+      Array.from({length:14},(_,i)=>{const a=i/14*Math.PI*2;return gem((50+33*Math.cos(a)).toFixed(1),(54+19*Math.sin(a)).toFixed(1),2.9,i%7===3?'emerald':'dia',1.3);}).join('')+
+      `<rect x="80" y="49" width="7" height="10" rx="2" fill="${G}"/>`),
+    pendant:svg(`<path d="M20 12 L50 44 L80 12" fill="none" stroke="${G}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray=".1 4"/>`+
+      `<circle cx="50" cy="47" r="3.4" fill="none" stroke="${G}" stroke-width="2"/>`+
+      `<path d="M50 86 C27 70 29 52 41 52 C46 52 50 56 50 59 C50 56 54 52 59 52 C71 52 73 70 50 86Z" fill="${G}"/>`+
+      gem(50,66,6.5,'emerald',0)+[[40,60],[60,60],[50,78]].map(([x,y])=>bead(x,y,1.8,'dia')).join('')),
+    mangalsutra:svg(beads([16,14],[50,78],[84,14],24,2.2,['black','black','black','black','pearl'],.04,.96)+beads([22,14],[50,66],[78,14],18,1.9,['black','black','black','pearl'],.05,.95)+
+      `<rect x="45" y="47" width="10" height="3" rx="1.5" fill="${G}"/><circle cx="43" cy="57" r="7" fill="${G}"/><circle cx="57" cy="57" r="7" fill="${G}"/>`+
+      `<circle cx="41" cy="55" r="2.2" fill="#FFF6D8" opacity=".8"/><circle cx="55" cy="55" r="2.2" fill="#FFF6D8" opacity=".8"/>`+bead(50,66,2.6,'dia')),
+    payal:svg(`<ellipse cx="50" cy="40" rx="34" ry="13" fill="none" stroke="url(#zs)" stroke-width="3.2"/>`+
+      Array.from({length:9},(_,i)=>{const a=(.08+i*.105)*Math.PI,x=50+34*Math.cos(a),y=40+13*Math.sin(a);return `<path d="M${x.toFixed(1)} ${y.toFixed(1)} V${(y+9).toFixed(1)}" stroke="url(#zs)" stroke-width="1.1"/><circle cx="${x.toFixed(1)}" cy="${(y+12).toFixed(1)}" r="3.6" fill="url(#zs)"/><path d="M${(x-1.6).toFixed(1)} ${(y+13).toFixed(1)} h3.2" stroke="#4B5260" stroke-width="1"/>`;}).join('')+
+      [0,.25,.5,.75].map(f=>{const a=Math.PI*(1+f)+.3;return bead((50+34*Math.cos(a)).toFixed(1),(40+13*Math.sin(a)).toFixed(1),2.2,'ruby');}).join('')),
+    tikka:svg(`<path d="M50 6 V46" stroke="${G}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray=".1 4.2"/>`+[16,26,36].map((y,i)=>bead(50,y,2.2,i===1?'ruby':'pearl')).join('')+
+      `<circle cx="50" cy="61" r="15" fill="${G}"/>`+Array.from({length:12},(_,i)=>{const a=i/12*Math.PI*2;return bead((50+11*Math.cos(a)).toFixed(1),(61+11*Math.sin(a)).toFixed(1),1.9,'pearl');}).join('')+
+      gem(50,61,5.8,'ruby',0)+drop(50,85,4,'pearl')),
+    nath:svg(`<circle cx="45" cy="58" r="25" fill="none" stroke="${G}" stroke-width="3.2"/>`+
+      Array.from({length:7},(_,i)=>{const a=(.55+i*.12)*Math.PI;return bead((45+25*Math.cos(a)).toFixed(1),(58+25*Math.sin(a)).toFixed(1),2.6,'pearl');}).join('')+
+      gem(66,44,5,'ruby')+[[66,35],[75,44],[66,53],[57,44]].map(([x,y])=>bead(x,y,2,'pearl')).join('')+
+      `<path d="M70 40 Q82 26 86 10" fill="none" stroke="${G}" stroke-width="2.2" stroke-linecap="round" stroke-dasharray=".1 4"/>`+[[80,26],[85,15]].map(([x,y])=>bead(x,y,2,'pearl')).join('')),
+    set:svg(necklace([26,16],[50,70],[74,16],false)+
+      [[11,30],[89,30]].map(([x,y])=>gem(x,y,3.2,'ruby')+`<path d="M${x} ${y+4.8} V${y+9}" stroke="${G}" stroke-width="1.5"/>`+drop(x,y+20,6.2,'emerald')+bead(x,y+30,2,'pearl')).join('')),
+    bridal:svg(curve('26 12','50 42','74 12',3)+beads([26,12],[50,42],[74,12],9,2.8,['ruby','emerald','ruby'])+
+      curve('16 14','50 72','84 14',2.4)+beads([16,14],[50,72],[84,14],13,2.3,['pearl'])+
+      curve('10 16','50 96','90 16',2.2)+beads([10,16],[50,96],[90,16],15,2.1,['ruby','pearl','pearl'])+
+      gem(50,47,3.5,'emerald')+drop(50,66,7,'ruby')+[[34,48],[66,48]].map(([x,y])=>drop(x,y,3.4,'emerald')).join(''))
   };
-  // ================================
+})();
 
-  const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/* =================== STATE =================== */
+const st={step:1,type:null,styles:[],size:'1:1',per:2,skin:'wheatish',q:'std',light:'auto',angle:'auto',tone:'auto',src:null,grp:'All'};
+let customStyles=LS.get('zs-custom',[]);
+const allStyles=()=>BUILTIN_STYLES.concat(customStyles);
 
-  let accessToken = null;
-  let tokenClient = null;
-  let selectedFiles = []; // { file, url }
+/* =================== STEP 1 =================== */
+TYPES.forEach(t=>{
+  const b=document.createElement('button');b.type='button';b.className='cat';b.setAttribute('aria-pressed','false');
+  b.innerHTML=`<span class="face" style="background:${t.bg}">${ICONS[t.id]||""}<span class="dv">${t.dv}</span></span><span class="nm">${t.nm}</span><span class="sb">${t.sb}</span>`;
+  b.onclick=()=>{st.type=t;$$('.cat').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));try{renderStyles();}catch(e){log('error',e);}refresh();};
+  $('#cats').appendChild(b);
+});
 
-  const folderNameInput = document.getElementById('folderName');
-  const dropZone = document.getElementById('dropZone');
-  const fileInput = document.getElementById('fileInput');
-  const thumbGrid = document.getElementById('thumbGrid');
-  const fileCount = document.getElementById('fileCount');
-  const connectBtn = document.getElementById('connectBtn');
-  const uploadBtn = document.getElementById('uploadBtn');
-  const statusLog = document.getElementById('statusLog');
-  const renameToggle = document.getElementById('renameToggle');
-
-  if (!CONFIG.CLIENT_ID || CONFIG.CLIENT_ID.includes('YOUR_CLIENT_ID_HERE')) {
-    connectBtn.disabled = true;
+/* =================== STEP 2 =================== */
+function paint(c,s){
+  const x=c.getContext('2d'),W=c.width,H=c.height,pal=s.pal||['#2b2320','#6e5a48'];
+  let g=x.createLinearGradient(0,0,W*.4,H);g.addColorStop(0,pal[0]);g.addColorStop(1,pal[1]);x.fillStyle=g;x.fillRect(0,0,W,H);
+  const light=parseInt(pal[0].slice(1,3),16)>150;
+  g=x.createRadialGradient(W/2,H*.45,W*.1,W/2,H*.5,W*.85);g.addColorStop(0,'rgba(255,255,255,'+(light?.25:.06)+')');g.addColorStop(1,'rgba(0,0,0,'+(light?.12:.45)+')');x.fillStyle=g;x.fillRect(0,0,W,H);
+  const gold=x.createLinearGradient(0,H*.2,W,H*.8);gold.addColorStop(0,'#fff1c4');gold.addColorStop(.35,'#e2b85e');gold.addColorStop(.7,'#9c6a1c');gold.addColorStop(1,'#f0cf83');
+  const stone=(px,py,r,col)=>{const sg=x.createRadialGradient(px-r*.3,py-r*.3,r*.1,px,py,r);sg.addColorStop(0,'#fff');sg.addColorStop(.35,col);sg.addColorStop(1,'rgba(0,0,0,.6)');x.fillStyle=gold;x.beginPath();x.arc(px,py,r+2.2,0,7);x.fill();x.fillStyle=sg;x.beginPath();x.arc(px,py,r,0,7);x.fill();};
+  const spark=(px,py,r)=>{x.save();x.translate(px,py);x.fillStyle='rgba(255,255,255,.9)';x.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.18:r;x.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}x.fill();x.restore();};
+  if(s.id==='festive'){for(let i=0;i<22;i++){x.fillStyle=`rgba(255,${170+Math.random()*70|0},80,${.12+Math.random()*.35})`;x.beginPath();x.arc(Math.random()*W,Math.random()*H*.5,8+Math.random()*22,0,7);x.fill();}
+    for(let i=0;i<3;i++){const dx=W*(.22+i*.28),dy=H*.86;x.fillStyle='#8a4a1a';x.beginPath();x.ellipse(dx,dy,22,9,0,0,7);x.fill();const fl=x.createRadialGradient(dx,dy-16,2,dx,dy-16,24);fl.addColorStop(0,'rgba(255,240,180,1)');fl.addColorStop(1,'rgba(255,150,40,0)');x.fillStyle=fl;x.beginPath();x.arc(dx,dy-16,24,0,7);x.fill();}}
+  if(s.id==='heritage'){x.strokeStyle='rgba(0,0,0,.18)';x.lineWidth=3;for(let i=0;i<9;i++){x.beginPath();x.arc(W/2,H*.1,40+i*26,0,Math.PI);x.stroke();}}
+  if(s.id==='marble'){x.strokeStyle='rgba(120,110,105,.25)';x.lineWidth=1.4;for(let i=0;i<6;i++){x.beginPath();x.moveTo(-10,Math.random()*H);for(let k=0;k<6;k++)x.lineTo(k*W/5,Math.random()*H);x.stroke();}
+    for(let i=0;i<6;i++){x.fillStyle='rgba(190,70,90,.55)';x.beginPath();x.ellipse(Math.random()*W,H*.7+Math.random()*H*.25,10,6,Math.random()*3,0,7);x.fill();}}
+  if(s.model){
+    x.fillStyle=light?'rgba(120,80,60,.32)':'rgba(255,230,210,.16)';
+    x.beginPath();x.ellipse(W/2,H*.2,W*.15,H*.15,0,0,7);x.fill();x.fillRect(W/2-W*.08,H*.3,W*.16,H*.14);
+    x.beginPath();x.ellipse(W/2,H*1.02,W*.55,H*.5,0,Math.PI,0);x.fill();
+    if(s.id==='bridal'){x.fillStyle='rgba(160,20,30,.45)';x.beginPath();x.moveTo(W*.05,H);x.quadraticCurveTo(W*.2,H*.25,W/2,H*.08);x.quadraticCurveTo(W*.8,H*.25,W*.95,H);x.lineTo(W*.82,H);x.quadraticCurveTo(W*.7,H*.4,W/2,H*.3);x.quadraticCurveTo(W*.3,H*.4,W*.18,H);x.fill();}
+    x.strokeStyle=gold;x.lineWidth=5;x.lineCap='round';x.beginPath();x.moveTo(W/2-W*.17,H*.44);x.quadraticCurveTo(W/2,H*.68,W/2+W*.17,H*.44);x.stroke();
+    for(let i=1;i<10;i++){const t=i/10,px=(1-t)*(1-t)*(W/2-W*.17)+2*(1-t)*t*W/2+t*t*(W/2+W*.17),py=(1-t)*(1-t)*H*.44+2*(1-t)*t*H*.68+t*t*H*.44;stone(px,py+6,4,i%3?'#b3122c':'#1b7a4a');}
+    stone(W/2,H*.6,10,'#b3122c');spark(W/2+14,H*.57,12);return;
   }
+  if(s.id==='display'){x.fillStyle='#0b0a0a';x.beginPath();x.moveTo(W/2-W*.26,H);x.lineTo(W/2-W*.12,H*.3);x.quadraticCurveTo(W/2,H*.18,W/2+W*.12,H*.3);x.lineTo(W/2+W*.26,H);x.fill();
+    const sp=x.createRadialGradient(W/2,0,10,W/2,0,H*.6);sp.addColorStop(0,'rgba(255,230,180,.35)');sp.addColorStop(1,'rgba(255,230,180,0)');x.fillStyle=sp;x.fillRect(0,0,W,H);}
+  if(s.id==='box'){x.fillStyle='rgba(0,0,0,.35)';x.fillRect(W*.14,H*.22,W*.72,H*.6);x.fillStyle='rgba(245,236,220,.9)';x.fillRect(W*.2,H*.28,W*.6,H*.48);}
+  const cx=W/2,top=s.id==='box'?H*.32:H*.28,bot=s.id==='box'?H*.66:H*.68,sp=W*(s.id==='macro'?.4:.3);
+  x.strokeStyle=gold;x.lineWidth=s.id==='macro'?8:5;x.lineCap='round';x.beginPath();x.moveTo(cx-sp,top);x.quadraticCurveTo(cx,bot+H*.12,cx+sp,top);x.stroke();
+  const N=s.id==='macro'?7:11;
+  for(let i=1;i<N;i++){const t=i/N,px=(1-t)*(1-t)*(cx-sp)+2*(1-t)*t*cx+t*t*(cx+sp),py=(1-t)*(1-t)*top+2*(1-t)*t*(bot+H*.12)+t*t*top;stone(px,py+8,s.id==='macro'?9:5,i%2?'#f2f4f7':'#b3122c');}
+  stone(cx,bot+H*.08,s.id==='macro'?22:13,'#1b7a4a');
+  x.fillStyle=gold;x.beginPath();x.moveTo(cx,bot+H*.13+(s.id==='macro'?14:6));x.lineTo(cx-7,bot+H*.17);x.lineTo(cx,bot+H*.21);x.lineTo(cx+7,bot+H*.17);x.fill();
+  spark(cx+18,bot+H*.04,s.id==='macro'?22:13);spark(cx-sp*.6,top+H*.08,8);
+}
 
-  function initTokenClient() {
-    if (tokenClient || !window.google) return;
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.CLIENT_ID,
-      scope: SCOPE,
-      callback: (resp) => {
-        if (resp.error) {
-          logLine('error', 'Connect nahi ho paya: ' + resp.error);
-          return;
-        }
-        accessToken = resp.access_token;
-        connectBtn.textContent = 'Connected ✓';
-        connectBtn.classList.add('connected');
-        connectBtn.disabled = true;
-        updateUploadState();
-      }
-    });
-  }
-  window.addEventListener('load', initTokenClient);
-
-  connectBtn.addEventListener('click', () => {
-    if (!tokenClient) initTokenClient();
-    if (tokenClient) tokenClient.requestAccessToken();
+/* style card preview as SVG (no canvas needed) */
+function stylePreview(s){
+  const pal=s.pal||['#2b2320','#6e5a48'],id='sp'+String(s.id).replace(/\W/g,''),light=parseInt(pal[0].slice(1,3),16)>150;
+  const kind=st.type?st.type.id:'necklace';
+  const icon=(x,y,w)=>(ICONS[kind]||ICONS.necklace).replace('<svg ',`<svg x="${x}" y="${y}" width="${w}" height="${w}" `);
+  let deco='',ic='';
+  const B=[[12,14,7],[30,8,5],[52,16,9],[68,6,6],[22,30,6],[62,32,5],[40,22,4],[8,40,5],[74,22,4]];
+  if(s.id==='festive'){deco=B.map(([x,y,r],i)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${i%2?'#FFD27A':'#FFB347'}" opacity="${.25+(i%3)*.12}"/>`).join('')+
+    [18,40,62].map(x=>`<ellipse cx="${x}" cy="90" rx="7" ry="2.6" fill="#7A3E12"/><circle cx="${x}" cy="85" r="5" fill="#FFE7A0" opacity=".55"/><path d="M${x} 81 q2 3 0 5 q-2 -2 0 -5z" fill="#FFF3C4"/>`).join('');}
+  else if(s.id==='marble'){deco=`<path d="M-2 30 L20 24 L34 40 L58 28 L82 36 M-2 70 L16 62 L40 74 L62 60 L82 66 M10 0 L18 18 L12 34" fill="none" stroke="#9A8F89" stroke-width=".6" opacity=".45"/>`+
+    [[14,84],[64,80],[70,90],[22,92]].map(([x,y])=>`<ellipse cx="${x}" cy="${y}" rx="3.4" ry="2" fill="#C24A63" opacity=".6" transform="rotate(${x} ${x} ${y})"/>`).join('');}
+  else if(s.id==='heritage'){deco=[0,1,2,3,4,5,6].map(i=>`<path d="M${-6-i*6} 100 V40 A${46+i*6} ${46+i*6} 0 0 1 ${86+i*6} 40 V100" fill="none" stroke="#000" stroke-width=".9" opacity=".14"/>`).join('');}
+  else if(s.id==='display'){deco=`<defs><radialGradient id="${id}sp" cx=".5" cy="0" r=".8"><stop offset="0" stop-color="#FFE6B4" stop-opacity=".4"/><stop offset="1" stop-color="#FFE6B4" stop-opacity="0"/></radialGradient></defs><rect width="80" height="100" fill="url(#${id}sp)"/><path d="M20 100 L30 34 Q40 24 50 34 L60 100Z" fill="#0B0A0A"/>`;}
+  else if(s.id==='box'){deco=`<rect x="10" y="20" width="60" height="62" rx="3" fill="#000" opacity=".3"/><rect x="15" y="25" width="50" height="52" rx="2" fill="#F5ECDC" opacity=".92"/>`;}
+  if(s.model){
+    const skin=light?'#7A5040':'#F3D9C6',op=light?.32:.2;
+    deco+=`<g fill="${skin}" opacity="${op}"><ellipse cx="40" cy="22" rx="12" ry="15"/><rect x="33" y="32" width="14" height="14"/><ellipse cx="40" cy="104" rx="44" ry="50"/></g>`;
+    if(s.id==='bridal')deco+=`<path d="M4 100 Q14 26 40 8 Q66 26 76 100 L66 100 Q58 40 40 30 Q22 40 14 100Z" fill="#A0141E" opacity=".45"/>`;
+    ic=icon(22,34,36);
+  }else ic=s.id==='macro'?icon(2,12,76):s.id==='box'?icon(18,28,44):s.id==='display'?icon(20,22,40):icon(10,18,60);
+  return `<svg viewBox="0 0 80 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="${pal[0]}"/><stop offset="1" stop-color="${pal[1]}"/></linearGradient>`+
+    `<radialGradient id="${id}v" cx=".5" cy=".45" r=".75"><stop offset="0" stop-color="#fff" stop-opacity="${light?.25:.06}"/><stop offset="1" stop-color="#000" stop-opacity="${light?.12:.45}"/></radialGradient></defs>`+
+    `<rect width="80" height="100" fill="url(#${id})"/><rect width="80" height="100" fill="url(#${id}v)"/>${deco}${ic}</svg>`;
+}
+function renderGrpChips(){const groups=['All','Product','Lifestyle','Model'].concat(customStyles.length?['Custom']:[]);
+  chipSeg($('#grpChips'),groups.map(g=>[g,g==='All'?`All (${allStyles().length})`:g]),st.grp,v=>{st.grp=v;renderStyles();});}
+function renderStyles(){
+  const box=$('#styles');box.innerHTML='';
+  allStyles().filter(s=>st.grp==='All'||(st.grp==='Custom'?s.custom:s.grp===st.grp&&!s.custom)).forEach(s=>{
+    const b=document.createElement('button');b.type='button';b.className='tile';
+    const idx=st.styles.findIndex(x=>x.id===s.id);b.setAttribute('aria-pressed',String(idx>=0));
+    const im=document.createElement('div');im.className='im';im.style.aspectRatio='4/5';
+    im.insertAdjacentHTML('beforeend',stylePreview(s));
+    im.insertAdjacentHTML('beforeend',`${s.flag?`<span class="flag${s.flag==='New'?' teal':s.flag==='Trending'?' orange':''}">${esc(s.flag)}</span>`:''}<span class="sel">${idx>=0?idx+1:''}</span><span class="rate"><i>★</i>${esc(s.grp)}<span>${esc(s.use||'Custom')}</span></span>`);
+    b.appendChild(im);
+    b.insertAdjacentHTML('beforeend',`<span class="tb"><span class="br">${esc(s.nm)}</span><span class="ds">${esc(s.sb)}</span><span class="pr">${s.model?'Model shot':'Product shot'}${s.flag==='Bestseller'?' <em>Most popular</em>':''}</span></span>`);
+    if(s.custom){const d=document.createElement('span');d.className='del';d.textContent='Remove';d.setAttribute('role','button');d.tabIndex=0;
+      d.onclick=e=>{e.stopPropagation();customStyles=customStyles.filter(x=>x.id!==s.id);LS.set('zs-custom',customStyles);st.styles=st.styles.filter(x=>x.id!==s.id);if(!customStyles.length&&st.grp==='Custom')st.grp='All';renderGrpChips();renderStyles();refresh();};b.appendChild(d);}
+    b.onclick=()=>{const i=st.styles.findIndex(x=>x.id===s.id);
+      if(i>=0)st.styles.splice(i,1);else{if(st.styles.length>=4){toast('Maximum 4 styles per shoot',true);return;}st.styles.push(s);}
+      renderStyles();refresh();};
+    box.appendChild(b);
   });
+  const add=document.createElement('button');add.type='button';add.className='tile add';
+  add.innerHTML='<span class="im"><span class="plus">+</span></span><span class="tb"><span class="br">Create your own</span><span class="ds">Write your own scene and save it</span></span>';
+  add.onclick=()=>{$('#customForm').hidden=false;$('#cName').focus();};box.appendChild(add);
+}
+let cModel=false;
+$('#cModel').onclick=()=>{cModel=!cModel;$('#cModel').setAttribute('aria-pressed',String(cModel));};
+$('#cCancel').onclick=()=>{$('#customForm').hidden=true;};
+$('#cSave').onclick=()=>{
+  const nm=$('#cName').value.trim(),d=$('#cDesc').value.trim();
+  if(!nm||!d){toast('Please enter both a name and a scene',true);return;}
+  const s={id:'c'+Date.now(),nm,sb:d.slice(0,46)+(d.length>46?'…':''),grp:cModel?'Model':'Product',model:cModel,custom:true,flag:'Mine',use:'Custom',pal:['#3a2a30','#a67c52'],p:`A premium jewellery photograph. Scene: ${d}.`};
+  customStyles.push(s);LS.set('zs-custom',customStyles);
+  $('#cName').value='';$('#cDesc').value='';cModel=false;$('#cModel').setAttribute('aria-pressed','false');$('#customForm').hidden=true;
+  if(st.styles.length<4)st.styles.push(s);renderGrpChips();renderStyles();refresh();toast('Style saved');
+};
+SIZES.forEach(z=>{
+  const b=document.createElement('button');b.type='button';b.className='size';b.setAttribute('aria-pressed',String(z.r===st.size));
+  b.innerHTML=`<span class="fr" style="width:${z.w}px;height:${z.h}px"></span><b>${z.r}</b><span>${z.nm} · ${z.sb}</span>`;
+  b.onclick=()=>{st.size=z.r;$$('.size').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));refresh();};
+  $('#sizes').appendChild(b);
+});
 
-  dropZone.addEventListener('click', () => fileInput.click());
-  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('drag');
-    addFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
-  });
-  fileInput.addEventListener('change', (e) => {
-    addFiles(Array.from(e.target.files));
-    fileInput.value = '';
-  });
+/* =================== STEP 3 =================== */
+chipSeg($('#perSeg'),[['1','1'],['2','2'],['3','3']],String(st.per),v=>{st.per=+v;refresh();},'rc');
+chipSeg($('#skinSeg'),SKINS,st.skin,v=>st.skin=v);
+chipSeg($('#lightSeg'),LIGHTS,st.light,v=>st.light=v);
+chipSeg($('#angleSeg'),ANGLES,st.angle,v=>st.angle=v);
+$$('#qualSeg .chip').forEach(b=>b.onclick=()=>{st.q=b.dataset.q;$$('#qualSeg .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));refresh();});
+TONES.forEach(([v,c])=>{const b=document.createElement('button');b.type='button';b.className='sw';b.title=v;b.setAttribute('aria-label',v);
+  b.style.background=v==='auto'?'conic-gradient(#fff 0 25%,#141111 0 50%,#6a1626 0 75%,#efe6d6 0)':c;b.setAttribute('aria-pressed',String(v===st.tone));
+  b.onclick=()=>{st.tone=v;$$('#toneSw .sw').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};$('#toneSw').appendChild(b);});
+const drop=$('#drop'),file=$('#file');
+drop.onclick=()=>file.click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadSrc(f);});
+file.onchange=()=>{if(file.files[0])loadSrc(file.files[0]);file.value='';};
+document.addEventListener('paste',e=>{if(st.step!==3)return;const f=[...(e.clipboardData?.files||[])].find(f=>f.type.startsWith('image/'));if(f)loadSrc(f);});
+function loadSrc(f){
+  if(!f.type.startsWith('image/')){toast('This is not an image file',true);return;}
+  const u=URL.createObjectURL(f),im=new Image();
+  const done=d=>{st.src={id:'s'+Date.now(),mime:d.slice(5,d.indexOf(';')),data:d.split(',')[1],url:d};
+    $('#srcPrev').src=d;$('#srcPrev').hidden=false;$('#dropIc').hidden=true;$('#dropBig').textContent='Photo added ✓';$('#dropHint').textContent='Tap to change';
+    URL.revokeObjectURL(u);refresh();};
+  im.onload=()=>{let d=null;
+    try{const s=Math.min(1,1800/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
+      const x=c.getContext('2d');if(x){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);d=c.toDataURL('image/jpeg',.93);}}catch(e){d=null;}
+    if(d&&d.startsWith('data:image/'))done(d);
+    else{const r=new FileReader();r.onload=()=>done(r.result);r.onerror=()=>toast('Could not read the photo',true);r.readAsDataURL(f);}};
+  im.onerror=()=>toast('Could not open the photo. Try a JPG or PNG',true);
+  im.src=u;
+}
 
-  function addFiles(files) {
-    for (const file of files) {
-      selectedFiles.push({ file, url: URL.createObjectURL(file) });
-    }
-    renderThumbs();
-    updateUploadState();
+/* =================== WIZARD =================== */
+const totalShots=()=>st.styles.length*st.per;
+function canNext(){return st.step===1?!!st.type:st.step===2?st.styles.length>0:st.step===3?!!st.src:true;}
+function refresh(){
+  $$('.st').forEach(b=>{const n=+b.dataset.go;b.className='st'+(n<st.step?' done':n===st.step?' now':'');});
+  $('#backBtn').hidden=st.step===1;
+  const nb=$('#nextBtn');
+  if(st.step===4){nb.textContent=busy?'Shooting…':`Start photoshoot`;nb.disabled=busy;}
+  else{nb.textContent='Continue';nb.disabled=!canNext();}
+  const b=$('#sumB'),s=$('#sumS');
+  if(st.step===1){b.textContent=st.type?st.type.nm:'Choose jewellery';s.textContent='Step 1 of 4 · Jewellery type';}
+  else if(st.step===2){b.textContent=st.styles.length?`${st.styles.length} style selected`:'Choose a style';s.textContent=st.styles.length?st.styles.map(x=>x.nm).join(', ')+' · '+st.size:'Step 2 of 4 · Max 4 styles';}
+  else if(st.step===3){b.textContent=st.src?'Photo ready ✓':'Upload a photo';s.textContent=`${totalShots()} shots · ${st.q==='ultra'?'Ultra HD':'Standard'}`;}
+  else{b.textContent=`${totalShots()} shots`;s.textContent=`${st.type.nm} · ${st.size} · ${st.q==='ultra'?'Ultra HD':'Standard'}`;}
+}
+function go(n){
+  if(n>1&&!st.type)n=1;if(n>2&&!st.styles.length)n=2;if(n>3&&!st.src)n=3;
+  st.step=n;$$('[data-step]').forEach(s=>s.hidden=+s.dataset.step!==n);
+  $('#modelBox').hidden=!st.styles.some(s=>s.model);
+  if(n===4)buildReview();refresh();window.scrollTo({top:0,behavior:'smooth'});
+}
+$('#nextBtn').onclick=()=>{if(st.step===4)shoot();else if(canNext())go(st.step+1);};
+$('#backBtn').onclick=()=>{if(st.step>1)go(st.step-1);};
+$$('.st').forEach(b=>b.onclick=()=>{const n=+b.dataset.go;if(n<st.step)go(n);});
+function buildReview(){
+  const lab=(arr,v)=>(arr.find(a=>a[0]===v)||[,v])[1];
+  $('#revImg').src=st.src.url;$('#revTitle').textContent=st.type.nm;
+  $('#revSub').textContent=$('#metal').selectedOptions[0].textContent;
+  const pills=[st.size,st.q==='ultra'?'Ultra HD':'Standard',st.per+' per style'];
+  if(st.styles.some(s=>s.model))pills.push(lab(SKINS,st.skin)+' model');
+  if(st.light!=='auto')pills.push(lab(LIGHTS,st.light));if(st.angle!=='auto')pills.push(lab(ANGLES,st.angle)+' angle');if(st.tone!=='auto')pills.push(st.tone);
+  $('#revPills').innerHTML=pills.map(p=>`<i>${esc(p)}</i>`).join('');
+  $('#pd').innerHTML=`<span class="t">Shoot details (${totalShots()} shots)</span>`+
+    st.styles.map(s=>`<div class="l"><span>${esc(s.nm)}</span><span>${st.per} × ${st.size}</span></div>`).join('')+
+    `<div class="l"><span>Studio rent</span><span class="g">₹0</span></div><div class="l"><span>Photographer</span><span class="g">₹0</span></div>`+
+    `<div class="l"><span>Brand watermark</span><span class="${bk.on?'g':''}">${bk.on?'ON':'Off'}</span></div>`+
+    `<div class="l tot"><span>Total shots</span><span>${totalShots()}</span></div>`+
+    `<p class="hint">Image generation is billed directly to your Google Gemini account.</p>`;
+}
+
+/* =================== PROMPTS =================== */
+function buildPrompt(s,vi){
+  const t=st.type,metal=$('#metal').value;
+  const keep=`REFERENCE: the attached photo shows a real ${metal?metal+' ':''}${t.p}. Reproduce THIS exact piece with complete fidelity: identical design, silhouette, proportions, number, cut, size and colour of every stone, enamel/meenakari colours, metal colour and finish, engravings and clasp. Never redesign, simplify, add or remove any element, and keep its real-world scale believable. Ignore and remove anything that is not the jewellery in the reference (price tags, labels, fingers, boxes, background).`;
+  const tone=st.tone==='auto'?'complementary neutral':st.tone;
+  let scene=s.p.replace(/\{tone\}/g,tone);
+  if(s.model){
+    const outfit=$('#outfit').value!=='auto'?$('#outfit').value:(s.outfit||'an elegant outfit that complements the jewellery');
+    const hair=$('#hair').value!=='auto'?` Her hair: ${$('#hair').value}.`:'';
+    scene+=` The model is a graceful Indian woman with ${st.skin} skin and natural skin texture, wearing ${outfit}.${hair} She wears the jewellery ${t.wear}, correctly sized and positioned exactly as it is really worn. The jewellery is the hero: in perfect sharp focus, clearly visible, not covered by hair or fabric. Tasteful, elegant pose and expression.`;
+  }else if(st.tone!=='auto'&&!/\{tone\}/.test(s.p)){scene+=` Use a ${st.tone} colour palette for the background.`;}
+  const pro=[st.light!=='auto'?`Lighting: ${st.light}.`:'',st.angle!=='auto'?`Camera angle: ${st.angle}.`:''].filter(Boolean).join(' ');
+  const extra=$('#extra').value.trim();
+  const vary=vi?` This is alternate take ${vi+1}: use a noticeably different camera angle and composition from other takes.`:'';
+  return `${keep}\n\nSHOT: ${scene} ${pro}${extra?` Creative direction: ${extra}.`:''}${vary}\n\nFINISH: luxury jewellery brand campaign quality, photorealistic, true-to-life metal reflections and gemstone brilliance, clean professional retouching, high resolution. No text, no logo, no watermark. Aspect ratio ${st.size}.`;
+}
+
+/* =================== API =================== */
+const API='https://generativelanguage.googleapis.com/v1beta';
+const keyEl=$('#apiKey');keyEl.value='';
+const cfg=Object.assign({std:'gemini-2.5-flash-image',ultra:'gemini-3-pro-image-preview',conc:3},LS.get('zs-cfg',{}));
+function addOpt(sel,v){if(![...sel.options].some(o=>o.value===v))sel.add(new Option(v,v));}
+addOpt($('#mStd'),cfg.std);addOpt($('#mUltra'),cfg.ultra);$('#mStd').value=cfg.std;$('#mUltra').value=cfg.ultra;$('#conc').value=String(cfg.conc);
+$('#mStd').onchange=()=>{cfg.std=$('#mStd').value;LS.set('zs-cfg',cfg);};
+$('#mUltra').onchange=()=>{cfg.ultra=$('#mUltra').value;LS.set('zs-cfg',cfg);};
+$('#conc').onchange=()=>{cfg.conc=+$('#conc').value;LS.set('zs-cfg',cfg);};
+let savedKey=LS.get('zs-key',''),verified=LS.get('zs-verified',false);
+const mask=k=>k.length>10?k.slice(0,4)+' •••• •••• '+k.slice(-4):'••••••••';
+function keyUI(editing){
+  const has=!!savedKey;
+
+  $('#profSub').textContent=has?(verified?'API key saved · Verified ✓':'API key saved · not verified'):'Connect your API key';
+  const edit=editing||!has;
+  $('#keyCard').hidden=!has||edit;$('#keyLinks').hidden=!has||edit;$('#keyEdit').hidden=!edit;$('#cancelKey').hidden=!has;
+  if(has){$('#keyMask').textContent=mask(savedKey);$('#keyCard').classList.toggle('unv',!verified);$('#vBadge').textContent=verified?'Verified':'Not verified';
+    $('.kc-ic').textContent=verified?'✓':'!';}
+}
+keyUI();
+async function listModels(){const key=keyEl.value.trim();if(!key)throw new Error('Please enter an API key first.');let out=[],tok='';
+  do{const r=await fetch(`${API}/models?pageSize=200${tok?'&pageToken='+tok:''}`,{headers:{'x-goog-api-key':key}});const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error?.message||'Error '+r.status);out=out.concat(j.models||[]);tok=j.nextPageToken||'';}while(tok);return out;}
+$('#showKey').onclick=()=>{const s=keyEl.type==='password';keyEl.type=s?'text':'password';$('#showKey').textContent=s?'Hide':'Show';};
+$('#saveKey').onclick=async()=>{
+  const k=keyEl.value.trim();if(!k){setS($('#keyStatus'),'The key is empty.','err');return;}
+  setS($('#keyStatus'),'Verifying…');$('#saveKey').disabled=true;
+  try{await listModels();savedKey=k;verified=true;LS.set('zs-key',k);LS.set('zs-verified',true);
+    keyEl.type='password';$('#showKey').textContent='Show';setS($('#keyStatus'),'');keyUI(false);toast('API key saved & verified');}
+  catch(e){setS($('#keyStatus'),e.message,'err');}
+  $('#saveKey').disabled=false;};
+$('#changeKey').onclick=()=>{keyEl.value='';setS($('#keyStatus'),'');setS($('#keyStatus2'),'');keyUI(true);keyEl.focus();};
+$('#cancelKey').onclick=()=>{keyEl.value=savedKey;setS($('#keyStatus'),'');keyUI(false);};
+$('#reverify').onclick=async()=>{keyEl.value=savedKey;setS($('#keyStatus2'),'Checking…');
+  try{await listModels();verified=true;setS($('#keyStatus2'),'All good ✓','ok');}catch(e){verified=false;setS($('#keyStatus2'),e.message,'err');}
+  LS.set('zs-verified',verified);keyUI(false);};
+$('#findModels').onclick=async()=>{try{const m=(await listModels()).filter(x=>/image/i.test(x.name)&&(x.supportedGenerationMethods||[]).includes('generateContent')).map(x=>x.name.replace('models/',''));
+  if(!m.length){setS($('#modelStatus'),'No image models found for this key.','err');return;}m.forEach(v=>{addOpt($('#mStd'),v);addOpt($('#mUltra'),v);});setS($('#modelStatus'),`${m.length} image models: ${m.join(', ')}`,'ok');}
+  catch(e){setS($('#modelStatus'),e.message,'err');}};
+function friendly(msg,status){
+  if(status===400&&/API key/i.test(msg))return'Invalid API key. Please check it in Profile.';
+  if(status===403)return'This key has no permission. Check billing in AI Studio.';
+  if(status===404)return'Model not found. Click "Find my image models" in Profile.';
+  if(status===429)return'Quota limit reached. Try again later, or set 1 shot at a time.';
+  if(status>=500)return'Google\'s server is busy. Please retry.';
+  return msg;}
+async function gen(text,img,ratio,model){
+  const key=savedKey;
+  const body={contents:[{role:'user',parts:[{text},{inline_data:{mime_type:img.mime,data:img.data}}]}],generationConfig:{responseModalities:['TEXT','IMAGE'],imageConfig:{aspectRatio:ratio}}};
+  const send=()=>fetch(`${API}/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
+  let r,j;
+  for(let a=0;a<3;a++){
+    r=await send();j=await r.json().catch(()=>({}));
+    if(!r.ok&&/imageConfig|aspect/i.test(j.error?.message||'')&&body.generationConfig.imageConfig){delete body.generationConfig.imageConfig;a--;continue;}
+    if(r.status===429||r.status>=500){await new Promise(z=>setTimeout(z,2500*(a+1)));continue;}
+    break;
   }
+  if(!r.ok)throw new Error(friendly(j.error?.message||'Error '+r.status,r.status));
+  const parts=j.candidates?.[0]?.content?.parts||[],ip=parts.find(p=>p.inlineData||p.inline_data);
+  if(!ip){const why=j.candidates?.[0]?.finishReason||j.promptFeedback?.blockReason,tx=parts.map(p=>p.text).filter(Boolean).join(' ');
+    throw new Error('The AI did not create a photo'+(why?` (${why})`:'')+(tx?': '+tx.slice(0,140):'. Please retry.'));}
+  const d=ip.inlineData||ip.inline_data;return `data:${d.mimeType||d.mime_type||'image/png'};base64,${d.data}`;
+}
+const urlToImg=u=>({mime:u.slice(5,u.indexOf(';')),data:u.split(',')[1]});
+async function toImg(u){if(u.startsWith('data:'))return urlToImg(u);const b=await (await fetch(u)).blob();
+  const d=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(b);});return urlToImg(d);}
 
-  function removeFile(index) {
-    URL.revokeObjectURL(selectedFiles[index].url);
-    selectedFiles.splice(index, 1);
-    renderThumbs();
-    updateUploadState();
-  }
+/* =================== STORAGE =================== */
+let dbp;
+function db(){if(!dbp)dbp=new Promise((res,rej)=>{try{const r=indexedDB.open('zevar-studio-pro',1);r.onupgradeneeded=()=>{r.result.createObjectStore('shots',{keyPath:'id'});r.result.createObjectStore('srcs',{keyPath:'id'});};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}catch(e){rej(e);}});return dbp;}
+async function tx(store,mode,fn){try{const d=await db();return await new Promise(res=>{const t=d.transaction(store,mode),s=t.objectStore(store),q=fn(s);if(q){q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);}else{t.oncomplete=()=>res(true);t.onerror=()=>res(null);}});}catch(e){return null;}}
+const dbAllRaw=()=>tx('shots','readonly',s=>s.getAll()).then(r=>r||[]);
+const mine=o=>!o.uid||(authUser&&o.uid===authUser.uid);
+const dbAll=()=>dbAllRaw().then(r=>r.filter(mine));
+const dbPut=o=>tx('shots','readwrite',s=>s.put(o));
+const dbGet=id=>tx('shots','readonly',s=>s.get(id));
+const dbDel=id=>tx('shots','readwrite',s=>s.delete(id));
+const srcPut=o=>tx('srcs','readwrite',s=>s.put(o));
+const srcGet=id=>tx('srcs','readonly',s=>s.get(id));
+let stats=LS.get('zs-stats',{made:0,shoots:0});
+function bump(k){stats[k]=(stats[k]||0)+1;LS.set('zs-stats',stats);}
 
-  function renderThumbs() {
-    thumbGrid.innerHTML = '';
-    selectedFiles.forEach((item, i) => {
-      const div = document.createElement('div');
-      div.className = 'thumb';
-      div.innerHTML = `
-        <img src="${item.url}" alt="">
-        <span class="idx">${i + 1}</span>
-        <button class="remove" title="Remove" data-i="${i}">✕</button>
-      `;
-      div.querySelector('.remove').addEventListener('click', (e) => {
-        removeFile(Number(e.currentTarget.dataset.i));
-      });
-      thumbGrid.appendChild(div);
-    });
-    fileCount.textContent = `${selectedFiles.length} image${selectedFiles.length === 1 ? '' : 's'} added`;
-  }
+/* =================== SHOT TILES =================== */
+const HEART='<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9.2C1.6 7.3 4 4 7.4 4c2 0 3.6 1.2 4.6 2.8C13 5.2 14.6 4 16.6 4 20 4 22.4 7.3 21 10.8 19 15.6 12 20 12 20z"/></svg>';
+const ar=r=>{const [w,h]=r.split(':');return `${w}/${h}`;};
+function placeholder(label,ratio){const c=document.createElement('div');c.className='tile';c.style.cursor='default';
+  c.innerHTML=`<div class="im" style="aspect-ratio:${ar(ratio)}"><div class="shim"></div><span class="ldtx">${LOADING[0]}</span></div><span class="tb"><span class="br">${esc(label)}</span><span class="ds">Creating · ${ratio}</span></span>`;
+  const t=c.querySelector('.ldtx');let i=0;c._iv=setInterval(()=>{t.textContent=LOADING[++i%LOADING.length];},2600);return c;}
+function shotTile(o){
+  const c=document.createElement('div');c.className='tile';c.dataset.id=o.id;
+  c.innerHTML=`<div class="im" style="aspect-ratio:${ar(o.ratio)}">${o.parent?'<span class="flag orange">Refined</span>':''}<img alt="${esc(o.styleNm)}" loading="lazy">
+     <button type="button" class="heart${o.fav?' on':''}" aria-label="Favourite" aria-pressed="${!!o.fav}">${HEART}</button><span class="rate"><i>★</i>AI<span>${o.ratio}</span></span></div>
+   <span class="tb"><span class="br">${esc(o.styleNm)}</span><span class="ds">${esc(o.typeNm)}${o.metal?' · '+esc(o.metal):''}</span><button type="button" class="dlb">Download</button></span>`;
+  c.querySelector('img').src=o.url;
+  c.querySelector('.im').onclick=e=>{if(!e.target.closest('.heart'))openPDP(o.id);};
+  c.querySelector('.heart').onclick=async e=>{const x=await dbGet(o.id);if(!x)return;x.fav=!x.fav;await dbPut(x);o.fav=x.fav;syncFav(o);badges();toast(x.fav?'Added to favourites':'Removed from favourites');};
+  c.querySelector('.dlb').onclick=()=>download(o,true);
+  return c;
+}
+function syncFav(o){$$(`.tile[data-id="${o.id}"] .heart`).forEach(b=>{b.classList.toggle('on',!!o.fav);b.setAttribute('aria-pressed',String(!!o.fav));});}
+function failTile(c,msg,retry){clearInterval(c._iv);c.className='tile fail';c.querySelector('.im').innerHTML=`<span>${esc(msg)}</span>`;c.querySelector('.ds').textContent='Failed';
+  if(retry){const b=document.createElement('button');b.type='button';b.className='dlb';b.textContent='Retry';b.onclick=retry;c.querySelector('.tb').appendChild(b);}}
 
-  function updateUploadState() {
-    uploadBtn.disabled = !(accessToken && selectedFiles.length > 0 && folderNameInput.value.trim());
-  }
-  folderNameInput.addEventListener('input', updateUploadState);
+/* =================== SHOOT =================== */
+let busy=false;
+async function runPool(tasks,n){let i=0;await Promise.all(Array.from({length:Math.min(n,tasks.length)},async()=>{while(i<tasks.length){const t=tasks[i++];await t();}}));}
+async function shoot(){
+  if(busy)return;
+  if(!savedKey){toast('Please add your Gemini API key in Profile first',true);showView('settings');return;}
+  const per=st.per,model=st.q==='ultra'?cfg.ultra:cfg.std,ratio=st.size,type=st.type,src=st.src,metal=$('#metal').selectedOptions[0].textContent;
+  await srcPut({id:src.id,url:src.url});
+  busy=true;refresh();
+  $('#resHead').hidden=false;$('#meter').hidden=false;const bar=$('#meter i');bar.style.width='4%';
+  let done=0,ok=0;const total=st.styles.length*per;
+  setS($('#shootStatus'),`0 / ${total} shots · har shot 10–40 second`);
+  const tasks=[];
+  st.styles.forEach(s=>{for(let v=0;v<per;v++){
+    const prompt=buildPrompt(s,v),ph=placeholder(s.nm,ratio);$('#results').prepend(ph);
+    const job=async card=>{
+      try{const url=await gen(prompt,src,ratio,model);
+        const o={id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,ratio,typeId:type.id,typeNm:type.nm,metal,styleId:s.id,styleNm:s.nm,srcId:src.id,prompt,model,fav:false,uid:authUser?authUser.uid:null};
+        await dbPut(o);clearInterval(card._iv);card.replaceWith(shotTile(o));ok++;bump('made');badges();return true;}
+      catch(e){failTile(card,e.message,()=>{const np=placeholder(s.nm,ratio);card.replaceWith(np);job(np);});return false;}
+    };
+    tasks.push(async()=>{await job(ph);done++;bar.style.width=(done/total*100)+'%';setS($('#shootStatus'),`${done} / ${total} shots ready`);});
+  }});
+  window.scrollTo({top:$('#resHead').offsetTop-80,behavior:'smooth'});
+  await runPool(tasks,cfg.conc);
+  bump('shoots');busy=false;refresh();
+  setS($('#shootStatus'),ok===total?`${ok} shots ready ✓ Saved to your gallery.`:`${ok} of ${total} created. Tap Retry on the failed tiles.`,ok===total?'ok':'err');
+  toast(ok?`${ok} new shots ready`:'No shots were created',!ok);
+}
 
-  function logLine(kind, html) {
-    const el = document.createElement('div');
-    el.className = 'status-line' + (kind ? ' ' + kind : '');
-    el.innerHTML = html;
-    statusLog.prepend(el);
-    return el;
-  }
+/* =================== GALLERY =================== */
+let filter='all';
+const matchF=o=>filter==='all'||(filter==='fav'?o.fav:o.typeNm===filter.slice(2));
+let unsavedCount=0;
+async function badges(){const all=await dbAll();unsavedCount=all.filter(o=>!o.dl).length;
+  $$('.savebar').forEach(b=>{b.hidden=!unsavedCount;const c=b.querySelector('.sbCount');if(c)c.textContent=`${unsavedCount} photo${unsavedCount>1?'s':''} not downloaded yet`;});}
+async function markSaved(list){for(const o of list){const x=await dbGet(o.id);if(x&&!x.dl){x.dl=true;await dbPut(x);}o.dl=true;}badges();}
+async function zipShots(list,btn,label){
+  if(!list.length)return true;
+  if(typeof JSZip==='undefined'){toast('ZIP needs internet. Downloading one by one instead',true);for(const o of list){await download(o,true);await new Promise(r=>setTimeout(r,500));}return true;}
+  if(btn){btn.disabled=true;btn.textContent='Preparing…';}
+  const zip=new JSZip();let i=0,ok=[],meter=$('#sdMeter i');
+  for(const o of list){try{const u=await branded(o.url,true);zip.file(fname(o,++i),u.split(',')[1],{base64:true});ok.push(o);}catch(e){}if(meter)meter.style.width=(i/list.length*100)+'%';}
+  if(ok.length){saveBlob(await zip.generateAsync({type:'blob'}),`omka-studio-${new Date().toISOString().slice(0,10)}.zip`);await markSaved(ok);}
+  if(btn){btn.disabled=false;btn.textContent=label||'Download ZIP';}
+  if(ok.length<list.length)toast(`${list.length-ok.length} photos could not be added to the ZIP`,true);else toast(`${ok.length} photos downloaded as ZIP`);
+  return ok.length===list.length;
+}
+async function galleryUI(){
+  const all=(await dbAll()).sort((a,b)=>b.t-a.t);
+  const types=[...new Set(all.map(o=>o.typeNm))];
+  const opts=[['all',`All (${all.length})`],['fav',`♥ Favourites (${all.filter(o=>o.fav).length})`]].concat(types.map(t=>['t:'+t,t]));
+  if(!opts.some(o=>o[0]===filter))filter='all';
+  chipSeg($('#filters'),opts,filter,v=>{filter=v;galleryUI();});
+  const list=all.filter(matchF);
+  $('#galSub').textContent=`${all.length} photos · saved in this browser`;
+  $('#galEmpty').hidden=all.length>0;$('#zipBtn').disabled=!list.length;$('.fbar').hidden=!all.length;
+  const g=$('#galGrid');g.innerHTML='';list.forEach(o=>g.appendChild(shotTile(o)));badges();
+}
 
-  async function getOrCreateFolder(name) {
-    const q = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g, "\\'")}' and trashed=false`);
-    const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const searchData = await searchRes.json();
-    if (searchData.files && searchData.files.length > 0) {
-      return searchData.files[0].id;
-    }
-    const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
+$('#zipBtn').onclick=async()=>{
+  const list=(await dbAll()).sort((a,b)=>b.t-a.t).filter(matchF);if(!list.length)return;
+  await zipShots(list,$('#zipBtn'),'Download ZIP');return;
+  if(typeof JSZip==='undefined'){toast('ZIP needs internet. Downloading one by one instead',true);for(const o of list){await download(o,true);await new Promise(r=>setTimeout(r,500));}return;}
+  const btn=$('#zipBtn');btn.disabled=true;btn.textContent='Preparing…';
+  const zip=new JSZip();let i=0;let skip=0;for(const o of list){try{const u=await branded(o.url,true);zip.file(fname(o,++i),u.split(',')[1],{base64:true});}catch(e){skip++;}}if(skip)toast(`${skip} photos could not be added to the ZIP`,true);
+  saveBlob(await zip.generateAsync({type:'blob'}),`omka-studio-${new Date().toISOString().slice(0,10)}.zip`);
+  btn.disabled=false;btn.textContent='Download ZIP';toast(`${list.length} photos downloaded as ZIP`);
+};
+
+/* =================== DOWNLOAD + BRAND =================== */
+let bk=Object.assign({on:false,name:'',logo:'',pos:'br',size:14,op:70,fmt:'png'},LS.get('zs-brand',{}));
+const ext=()=>bk.fmt==='jpg'?'jpg':'png';
+function fname(o,i){return `omka-${o.typeNm}-${o.styleNm}${i?'-'+i:''}-${o.id.slice(-4)}.${ext()}`.toLowerCase().replace(/[^a-z0-9.\-]+/g,'-');}
+function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+const loadImg=u=>new Promise((res,rej)=>{const i=new Image();if(/^https?:/.test(u))i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=rej;i.src=u;});
+async function drawBrand(ctx,W,H){
+  if(!bk.name&&!bk.logo)return;
+  ctx.save();ctx.globalAlpha=bk.op/100;
+  const unit=Math.min(W,H)*bk.size/100,pad=Math.min(W,H)*.04;
+  let logo=null;if(bk.logo){try{logo=await loadImg(bk.logo);}catch(e){}}
+  const measure=()=>{let lw=0,lh=0;if(logo){lh=unit;lw=logo.width/logo.height*lh;}ctx.font=`700 ${Math.max(10,unit*.32)}px Assistant, Arial, sans-serif`;
+    const tw=bk.name?ctx.measureText(bk.name.toUpperCase()).width:0;return {lw,lh,tw,W:Math.max(lw,tw),H:lh+(bk.name?unit*.45:0)+(logo&&bk.name?unit*.12:0)};};
+  const drawAt=(x,y,align)=>{const m=measure();const x0=align==='r'?x-m.W:align==='c'?x-m.W/2:x,y0=y-m.H;
+    if(logo)ctx.drawImage(logo,x0+(m.W-m.lw)/2,y0,m.lw,m.lh);
+    if(bk.name){ctx.fillStyle='#ffffff';ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=unit*.12;ctx.textBaseline='bottom';ctx.fillText(bk.name.toUpperCase(),x0+(m.W-m.tw)/2,y);ctx.shadowBlur=0;}};
+  if(bk.pos==='tile'){ctx.globalAlpha=bk.op/100*.35;const step=unit*4.2;ctx.translate(W/2,H/2);ctx.rotate(-Math.PI/7);ctx.translate(-W/2,-H/2);
+    for(let y=-H*.3;y<H*1.4;y+=step)for(let x=-W*.3+(Math.round(y/step)%2)*step/2;x<W*1.3;x+=step*1.4)drawAt(x,y,'c');}
+  else if(bk.pos==='c'){ctx.globalAlpha=bk.op/100*.6;drawAt(W/2,H/2+unit/2,'c');}
+  else{const r=bk.pos[1]==='r',t=bk.pos[0]==='t';drawAt(r?W-pad:pad,t?pad+measure().H:H-pad,r?'r':'l');}
+  ctx.restore();
+}
+async function branded(url,useBrand){
+  const im=await loadImg(url),c=document.createElement('canvas');c.width=im.width;c.height=im.height;const x=c.getContext('2d');
+  if(bk.fmt==='jpg'){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);}
+  x.drawImage(im,0,0);if(useBrand&&bk.on)await drawBrand(x,c.width,c.height);
+  return c.toDataURL(bk.fmt==='jpg'?'image/jpeg':'image/png',.95);
+}
+async function download(o,useBrand){try{const u=await branded(o.url,useBrand);saveBlob(await (await fetch(u)).blob(),fname(o));markSaved([o]);toast('Download started');}
+  catch(e){if(/^https?:/.test(o.url)){const a=document.createElement('a');a.href=o.url;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();toast('Photo opened in a new tab. The watermark could not be added.',true);}
+  else toast('Download failed: '+e.message,true);}}
+const bkSave=()=>{LS.set('zs-brand',bk);bkPreview();};
+function bkSync(){$('#bkOn').setAttribute('aria-pressed',String(bk.on));$('#bkOn').textContent=bk.on?'Watermark ON':'Watermark OFF';
+  $('#bkName').value=bk.name;$('#bkSize').value=bk.size;$('#bkOp').value=bk.op;
+  $('#bkLogoPrev').hidden=!bk.logo;$('#bkLogoDel').hidden=!bk.logo;if(bk.logo)$('#bkLogoPrev').src=bk.logo;
+  $$('#bkFmt .chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.f===bk.fmt)));}
+chipSeg($('#bkPos'),POSITIONS,bk.pos,v=>{bk.pos=v;bkSave();});
+$('#bkOn').onclick=()=>{bk.on=!bk.on;bkSync();bkSave();toast(bk.on?'Watermark will be added to every download':'Watermark off');};
+$('#bkName').oninput=()=>{bk.name=$('#bkName').value;bkSave();};
+$('#bkSize').oninput=()=>{bk.size=+$('#bkSize').value;bkSave();};
+$('#bkOp').oninput=()=>{bk.op=+$('#bkOp').value;bkSave();};
+$$('#bkFmt .chip').forEach(b=>b.onclick=()=>{bk.fmt=b.dataset.f;bkSync();bkSave();});
+$('#bkLogoBtn').onclick=()=>$('#bkLogo').click();
+$('#bkLogoDel').onclick=()=>{bk.logo='';bkSync();bkSave();};
+$('#bkLogo').onchange=()=>{const f=$('#bkLogo').files[0];if(!f)return;const u=URL.createObjectURL(f);loadImg(u).then(im=>{const s=Math.min(1,600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);bk.logo=c.toDataURL('image/png');URL.revokeObjectURL(u);bkSync();bkSave();toast('Logo saved');}).catch(()=>toast('Could not open the logo',true));$('#bkLogo').value='';};
+async function bkPreview(){
+  const c=$('#bkCanvas'),x=c.getContext&&c.getContext('2d');if(!x)return;const all=await dbAll();const pick=all.find(o=>o.fav)||all[0];
+  if(pick){try{const im=await loadImg(pick.url);const s=Math.max(c.width/im.width,c.height/im.height);x.drawImage(im,(c.width-im.width*s)/2,(c.height-im.height*s)/2,im.width*s,im.height*s);}catch(e){}}
+  else{try{paint(c,BUILTIN_STYLES[8]);}catch(e){}}
+  const was=bk.on;bk.on=true;await drawBrand(x,c.width,c.height);bk.on=was;
+}
+bkSync();
+
+/* =================== PRODUCT DETAIL =================== */
+let cur=null,cmpOn=false,cmpPos=50;
+async function openPDP(id){
+  const o=await dbGet(id);if(!o)return;cur=o;
+  $('#lbAfter').src=o.url;$('#lbBar').textContent=o.styleNm;$('#lbTitle').textContent=o.styleNm;$('#lbSub').textContent=`${o.typeNm}${o.metal?' · '+o.metal:''}`;
+  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${o.ratio}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?'<dt>Type</dt><dd>Refined version</dd>':''}`;
+  $('#lbPrompt').textContent=o.prompt||'';$('#refineTx').value='';setS($('#lbStatus'),'');$('#lbDelYes').hidden=true;favUI();
+  const s=o.srcId?await srcGet(o.srcId):null;$('#cmpToggle').disabled=!s;if(s)$('#lbBefore').src=s.url;
+  setCmp(false);if(!$('#lb').open)$('#lb').showModal();$('.pdpin').scrollTop=0;
+}
+function favUI(){const on=!!cur.fav;$('#lbFav').classList.toggle('pink',on);$('#lbFav').lastChild.textContent=on?'Favourited':'Favourite';$('#lbFavTop').style.color=on?'var(--pink)':'';$('#lbFavTop').querySelector('svg').style.fill=on?'currentColor':'none';}
+function setCmp(on){cmpOn=on;$('#cmpToggle').setAttribute('aria-pressed',String(on));['#lbBefore','#cmpHandle','#lblA','#lblB'].forEach(s=>$(s).hidden=!on);moveCmp(50);}
+function moveCmp(p){cmpPos=Math.max(0,Math.min(100,p));$('#lbBefore').style.clipPath=`inset(0 ${100-cmpPos}% 0 0)`;$('#cmpHandle').style.left=cmpPos+'%';}
+$('#cmpToggle').onclick=()=>setCmp(!cmpOn);
+(function(){const el=$('#cmp');let drag=false;const at=e=>{const r=el.getBoundingClientRect();moveCmp((e.clientX-r.left)/r.width*100);};
+  el.addEventListener('pointerdown',e=>{if(!cmpOn)return;drag=true;el.setPointerCapture(e.pointerId);at(e);});
+  el.addEventListener('pointermove',e=>{if(drag)at(e);});el.addEventListener('pointerup',()=>drag=false);
+  document.addEventListener('keydown',e=>{if(!$('#lb').open||!cmpOn)return;if(e.key==='ArrowLeft')moveCmp(cmpPos-5);if(e.key==='ArrowRight')moveCmp(cmpPos+5);});})();
+$('#lbClose').onclick=()=>$('#lb').close();
+const toggleFav=async()=>{cur.fav=!cur.fav;await dbPut(cur);favUI();syncFav(cur);badges();if(!$('#v-gallery').hidden)galleryUI();};
+$('#lbFav').onclick=toggleFav;$('#lbFavTop').onclick=toggleFav;
+$('#lbDl').onclick=()=>download(cur,true);
+$('#lbDlRaw').onclick=()=>download(cur,false);
+$('#lbDel').onclick=()=>{$('#lbDelYes').hidden=false;};
+$('#lbDelYes').onclick=async()=>{await dbDel(cur.id);$$(`.tile[data-id="${cur.id}"]`).forEach(c=>c.remove());$('#lb').close();badges();if(!$('#v-gallery').hidden)galleryUI();toast('Photo deleted');};
+async function pdpGen(kind){
+  if(!savedKey){toast('Please add your API key in Profile first',true);return;}
+  const base=cur;let prompt,img;
+  if(kind==='refine'){const t=$('#refineTx').value.trim();if(!t){setS($('#lbStatus'),'First describe what you want to change.','err');return;}
+    prompt=`Edit this jewellery photograph. Requested change: ${t}. Keep the jewellery piece exactly identical in design, stones, colours and proportions. Keep everything else the same unless the change requires it. Photorealistic, no text, no watermark.`;img=await toImg(base.url).catch(()=>null);if(!img){setS($('#lbStatus'),'Could not load this photo.','err');return;}}
+  else{const s=base.srcId?await srcGet(base.srcId):null;if(!s||!base.prompt){setS($('#lbStatus'),'Original photo not found.','err');return;}
+    prompt=base.prompt+' Create a fresh alternate take with a different composition.';img=await toImg(s.url).catch(()=>null);if(!img){setS($('#lbStatus'),'Could not load the original photo.','err');return;}}
+  $('#refineBtn').disabled=$('#regenBtn').disabled=true;setS($('#lbStatus'),kind==='refine'?'Refining… 10–40 seconds':'Creating a new version…');
+  try{const url=await gen(prompt,img,base.ratio,base.model||cfg.std);
+    const o=Object.assign({},base,{id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,fav:false,parent:kind==='refine'?base.id:undefined,prompt:kind==='refine'?base.prompt+'\n\nREFINE: '+$('#refineTx').value.trim():base.prompt});
+    o.uid=authUser?authUser.uid:null;await dbPut(o);bump('made');badges();
+    if(!$('#v-create').hidden&&st.step===4)$('#results').prepend(shotTile(o));
+    if(!$('#v-gallery').hidden)galleryUI();
+    toast(kind==='refine'?'Refined version ready':'New version ready');openPDP(o.id);
+  }catch(e){setS($('#lbStatus'),e.message,'err');}
+  $('#refineBtn').disabled=$('#regenBtn').disabled=false;
+}
+$('#refineBtn').onclick=()=>pdpGen('refine');
+$('#regenBtn').onclick=()=>pdpGen('regen');
+
+
+/* =================== SAVE BEFORE LEAVING =================== */
+let afterSave=null,exitShown=false;
+async function openSaveDlg(reason,then){
+  await badges();
+  if(!unsavedCount){then&&then();return;}
+  afterSave=then||null;
+  const list=(await dbAll()).filter(o=>!o.dl).sort((a,b)=>b.t-a.t);
+  $('#sdTitle').textContent=reason==='logout'?'Save your photos before logging out':'Wait! Your photos aren\'t downloaded yet';
+  $('#sdSub').textContent=`${list.length} of your photo${list.length>1?'s are':' is'} not downloaded to your phone or computer yet. Save them all as one ZIP file with a single click.`;
+  $('#sdThumbs').innerHTML=list.slice(0,5).map(o=>`<img src="${o.url}" alt="">`).join('')+(list.length>5?`<span>+${list.length-5}</span>`:'');
+  $('#sdSave').textContent=`Download all (${list.length})`;$('#sdSave').disabled=false;
+  $('#sdSkip').textContent=reason==='logout'?'Log out without downloading':'Leave without downloading';
+  $('#sdSkip').hidden=!then;$('#sdMeter').hidden=true;$('#sdMeter i').style.width='0';
+  const d=$('#saveDlg');if(!d.open)d.showModal();
+}
+$('#sdSave').onclick=async()=>{
+  const list=(await dbAll()).filter(o=>!o.dl);$('#sdMeter').hidden=false;
+  const all=await zipShots(list,$('#sdSave'),'Download all');
+  if(all){$('#saveDlg').close();toast('All photos saved ✓ You can leave now');const f=afterSave;afterSave=null;f&&f();}
+};
+$$('.sbBtn').forEach(b=>b.onclick=()=>openSaveDlg('bar'));
+$('#sdSkip').onclick=()=>{$('#saveDlg').close();const f=afterSave;afterSave=null;f&&f();};
+$('#sdStay').onclick=$('#sdClose').onclick=()=>{afterSave=null;$('#saveDlg').close();};
+// browser "Leave site?" warning while photos are not downloaded or a shoot is running
+window.addEventListener('beforeunload',e=>{if(unsavedCount>0||busy){e.preventDefault();e.returnValue='';return '';}});
+// desktop: show the popup when the mouse heads to close the tab
+document.addEventListener('mouseout',e=>{
+  if(exitShown||e.relatedTarget||e.clientY>8||!unsavedCount||$('#saveDlg').open||$('#lb').open)return;
+  exitShown=true;openSaveDlg('exit');
+});
+
+/* =================== VIEWS =================== */
+async function statUI(){const all=await dbAll();
+  $('#stats').innerHTML=`<div><b>${all.length}</b><span>Photos</span></div><div><b>${stats.shoots||0}</b><span>Shoots</span></div><div><b>${all.filter(o=>o.fav).length}</b><span>Favourites</span></div>`;}
+function showView(v){
+  $$('[data-view]').forEach(b=>{if(b.closest('.tnav')||b.closest('.tabs')){if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}});
+  ['create','gallery','brand','settings'].forEach(n=>$('#v-'+n).hidden=n!==v);
+  document.body.classList.toggle('on-settings',v==='settings');
+  if(v==='gallery')galleryUI();if(v==='brand')bkPreview();if(v==='settings')statUI();window.scrollTo({top:0});
+}
+$$('[data-view]').forEach(b=>b.addEventListener('click',()=>{if(b.id!=='favIcon')showView(b.dataset.view);}));
+const wipeMode=on=>{$('#wipe').hidden=on;$('#wipeYes').hidden=!on;$('#wipeNo').hidden=!on;};
+$('#wipe').onclick=()=>{wipeMode(true);setS($('#wipeStatus'),'All photos will be deleted. This cannot be undone.','err');};
+$('#wipeNo').onclick=()=>{wipeMode(false);setS($('#wipeStatus'),'');};
+$('#wipeYes').onclick=async()=>{await tx('shots','readwrite',s=>s.clear());await tx('srcs','readwrite',s=>s.clear());wipeMode(false);setS($('#wipeStatus'),'Gallery cleared.','ok');badges();statUI();};
+
+
+
+
+/* =================== LOGIN (Firebase Google) =================== */
+const FB=window.OMKA_FIREBASE_CONFIG;
+const onWeb=/^https?:$/.test(location.protocol)&&location.origin!=='null';
+const fbReady=!!(FB&&FB.apiKey&&!/^PASTE/i.test(FB.apiKey))&&onWeb;
+let authUser=null;
+$('#gateIcons').innerHTML=['necklace','earring','ring','bangles'].map(k=>`<span>${ICONS[k]}</span>`).join('');
+function gateState(stt,msg){
+  $('#gateLocal').hidden=!(stt==='out'&&/could not load/i.test(msg||''));
+  $('#gate').hidden=stt==='in'||stt==='dev';
+  $('#gateLoad').hidden=stt!=='load';$('#gateLogin').hidden=stt!=='out';
+  if(stt==='out'){$('#gBtn').disabled=false;$('#gBtnTx').textContent='Continue with Google';setS($('#gateErr'),msg||'',msg?'err':'');}
+}
+function headerUser(){
+  const u=authUser,av=$('#uAv');
+  $('#uName').textContent=u?((u.name||'').split(' ')[0]||'Profile'):(fbReady?'Login':'Profile');
+  $('#uMail').textContent=u?(u.email||''):(fbReady?'Sign in with Google':'Local mode');
+  av.classList.toggle('in',!!u);
+  if(u&&u.photo){av.innerHTML='';const i=new Image();i.alt='';i.referrerPolicy='no-referrer';i.src=u.photo;i.onerror=()=>{av.textContent=(u.name||u.email||'O')[0].toUpperCase();};av.appendChild(i);}
+  else if(u)av.textContent=(u.name||u.email||'O')[0].toUpperCase();
+  else av.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
+}
+function profileUI(){
+  const u=authUser;headerUser();$('#acct').hidden=!u;
+  if(u){$('#acEmail').textContent=u.email||'—';$('#acSince').textContent=u.since?new Date(u.since).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'—';}
+  $('#storeHint').textContent=u?'Your photos are saved in this browser under your Google account. They won\'t appear on other phones or browsers.':'All photos are saved only in this browser.';
+  $('#profName').textContent=u?(u.name||'OMKA user'):'OMKA Studio';
+  $('#profEmail').hidden=!u||!u.email;$('#profEmail').textContent=u?.email||'';
+  const av=$('#profAv');av.textContent='';
+  if(u&&u.photo){const i=new Image();i.alt='';i.referrerPolicy='no-referrer';i.src=u.photo;i.onerror=()=>{av.textContent=(u.name||'O')[0].toUpperCase();};av.appendChild(i);}
+  else av.textContent=u?(u.name||u.email||'O')[0].toUpperCase():'O';
+}
+const AUTH_MSG={'auth/popup-closed-by-user':'The login window was closed. Please try again.','auth/cancelled-popup-request':'The login window was closed. Please try again.',
+  'auth/unauthorized-domain':'This domain is not allowed in Firebase. Add it under Firebase Console → Authentication → Settings → Authorized domains.',
+  'auth/operation-not-allowed':'Google sign-in is not enabled in Firebase. Enable Google under Authentication → Sign-in method.',
+  'auth/network-request-failed':'Please check your internet connection.'};
+const authErr=e=>e?.code==='load'?'Google login could not load here. Open the app from your website link (for example omka-studio.web.app), or continue without login.':AUTH_MSG[e?.code]||('Login failed: '+(e?.message||e));
+$('#gBtn').onclick=async()=>{
+  if(!window.omkaAuth){setS($('#gateErr'),'Login is still loading. Please wait a second and try again.','err');return;}
+  $('#gBtn').disabled=true;$('#gBtnTx').textContent='Opening Google…';setS($('#gateErr'),'');
+  try{await window.omkaAuth.signIn();}catch(e){gateState('out',authErr(e));}
+};
+const doLogout=async()=>{try{await window.omkaAuth?.signOut();toast('Logged out');}catch(e){toast(authErr(e),true);}};
+$('#gateLocal').onclick=()=>{gateState('dev');headerUser();toast('Running in local mode');};
+$('#logoutBtn').onclick=()=>openSaveDlg('logout',doLogout);
+window.addEventListener('omka-auth',e=>{
+  const d=e.detail||{};
+  if(d.dev){gateState('dev');return;}
+  if(d.error){gateState('out',authErr(d.error));return;}
+  const was=authUser;authUser=d.user||null;profileUI();
+  if(authUser){gateState('in');if(!was||was.uid!==authUser.uid){toast(`Welcome, ${(authUser.name||'').split(' ')[0]||'back'}`);}}
+  else gateState('out');
+  badges();if(!$('#v-gallery').hidden)galleryUI();if(!$('#v-settings').hidden)statUI();
+});
+gateState(fbReady?'load':'dev');headerUser();
+if(!fbReady)log('info','OMKA Studio: Firebase settings are empty, so login is off (local mode).');
+
+[renderGrpChips,renderStyles,()=>go(1),badges].forEach(f=>{try{const r=f();if(r&&r.catch)r.catch(e=>log('error',e));}catch(e){log('error','OMKA init:',e);}});
+if(!savedKey){showView('settings');setTimeout(()=>toast('Add your Gemini API key to get started'),400);}
+})();
+</script>
+
+<script type="module">
+const log=(t,...a)=>{try{const c=window.console;const f=c&&(c[t]||c.log);if(typeof f==="function")f.apply(c,a);}catch(e){}};
+const cfg=window.OMKA_FIREBASE_CONFIG;
+const send=d=>window.dispatchEvent(new CustomEvent('omka-auth',{detail:d}));
+if(!(cfg&&cfg.apiKey&&!/^PASTE/i.test(cfg.apiKey))||!/^https?:$/.test(location.protocol)||location.origin==='null'){send({dev:true});}
+else{
+  try{
+    const V='10.12.2';
+    const {initializeApp}=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+    const A=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+    const app=initializeApp(cfg);
+    const auth=A.getAuth(app);auth.languageCode='hi';
+    await A.setPersistence(auth,A.browserLocalPersistence);
+    const provider=new A.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});
+    window.omkaAuth={
+      async signIn(){
+        try{await A.signInWithPopup(auth,provider);}
+        catch(e){if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment'].includes(e.code))return A.signInWithRedirect(auth,provider);throw e;}
       },
-      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder' })
-    });
-    const createData = await createRes.json();
-    return createData.id;
-  }
-
-  async function uploadOneFile(file, folderId, fileName) {
-    const metadata = { name: fileName, parents: [folderId] };
-    const boundary = '-------sku_uploader_' + Date.now();
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const closeDelim = `\r\n--${boundary}--`;
-
-    const metaPart = delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata);
-    const mediaHeader = delimiter + `Content-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`;
-
-    const bodyBlob = new Blob([metaPart, mediaHeader, file, closeDelim]);
-
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`
-      },
-      body: bodyBlob
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(errText);
-    }
-    return res.json();
-  }
-
-  uploadBtn.addEventListener('click', async () => {
-    const folderName = folderNameInput.value.trim();
-    if (!folderName || selectedFiles.length === 0) return;
-
-    uploadBtn.disabled = true;
-    connectBtn.disabled = true;
-    statusLog.innerHTML = '';
-    const folderLine = logLine('', `⏳ "${folderName}" folder dhoond/bana rahe hain...`);
-
-    let folderId;
-    try {
-      folderId = await getOrCreateFolder(folderName);
-      folderLine.className = 'status-line done';
-      folderLine.innerHTML = `✅ Folder ready: <strong>${folderName}</strong>`;
-    } catch (err) {
-      folderLine.className = 'status-line error';
-      folderLine.innerHTML = `❌ Folder create/find karne me error: ${err.message || err}`;
-      uploadBtn.disabled = false;
-      connectBtn.disabled = !!accessToken;
-      return;
-    }
-
-    let successCount = 0;
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const { file } = selectedFiles[i];
-      const ext = (file.name.split('.').pop() || 'jpg');
-      const fileName = renameToggle.checked ? `${folderName}_${i + 1}.${ext}` : file.name;
-      const line = logLine('', `⏳ Uploading ${fileName}...`);
-      try {
-        const result = await uploadOneFile(file, folderId, fileName);
-        successCount++;
-        line.className = 'status-line done';
-        line.innerHTML = `✅ ${fileName} uploaded`;
-      } catch (err) {
-        line.className = 'status-line error';
-        line.innerHTML = `❌ ${fileName} fail ho gayi: ${(err.message || err).toString().slice(0, 140)}`;
-      }
-    }
-
-    logLine(successCount === selectedFiles.length ? 'done' : '', 
-      `${successCount}/${selectedFiles.length} images upload ho gayi. <a href="https://drive.google.com/drive/folders/${folderId}" target="_blank">Folder kholo →</a>`);
-
-    // Agli SKU/folder ke liye form reset karo taaki turant naya kaam shuru ho sake
-    if (successCount === selectedFiles.length) {
-      selectedFiles.forEach(item => URL.revokeObjectURL(item.url));
-      selectedFiles = [];
-      renderThumbs();
-      folderNameInput.value = '';
-      folderNameInput.focus();
-    }
-
-    uploadBtn.disabled = true;
-    connectBtn.disabled = !!accessToken;
-    updateUploadState();
-  });
+      signOut:()=>A.signOut(auth),
+      user:()=>auth.currentUser
+    };
+    A.getRedirectResult(auth).catch(e=>send({error:{code:e.code,message:e.message}}));
+    A.onAuthStateChanged(auth,u=>send({user:u?{uid:u.uid,name:u.displayName,email:u.email,photo:u.photoURL,since:u.metadata&&u.metadata.creationTime}:null}));
+  }catch(e){send({error:{code:e.code||'load',message:'Firebase could not load. Check your internet and the Firebase settings at the top of the HTML. ('+(e.message||e)+')'}});}
+}
 </script>
 </body>
 </html>
