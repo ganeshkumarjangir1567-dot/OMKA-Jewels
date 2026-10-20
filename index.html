@@ -368,6 +368,16 @@ main{padding-top:8px}
 details.acc summary{padding:12px 14px}
 details.acc > div{padding:2px 14px 14px;gap:12px}
 #v-create{padding-bottom:76px}
+.freeprompt{border:1px dashed var(--pink);background:var(--pink-bg);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fp-head{display:flex;flex-direction:column;gap:4px}
+.fp-head b{font-size:15px}
+.fp-tag{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:var(--pink)}
+.fp-steps{margin:0;padding-left:20px;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
+.fp-steps a{color:var(--pink);font-weight:700}
+.fp-item{background:var(--white);border:1px solid var(--line);border-radius:4px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.fp-item .row{justify-content:space-between}
+.fp-item b{font-size:14px}
+.fp-item textarea{min-height:120px;font-size:12.5px;line-height:1.45;color:var(--muted);background:var(--canvas)}
 /* phone listing grid: every tile fully boxed by hairlines, like a shopping app listing */
 @media (max-width:820px){
   .grid{gap:0!important;row-gap:0!important;background:none!important;border-top:1px solid var(--line);border-bottom:0}
@@ -595,6 +605,12 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
           <div class="field"><span class="lab">Quality</span>
             <div class="chips" id="qualSeg"><button type="button" class="chip" data-q="std" aria-pressed="false">Standard · 1K</button><button type="button" class="chip" data-q="hd" aria-pressed="true">HD · 2K</button><button type="button" class="chip" data-q="ultra" aria-pressed="false">Ultra HD · 4K</button><button type="button" class="chip" data-q="pro" aria-pressed="false">Pro · best detail</button></div>
             <p class="hint" id="qualHint"></p></div>
+          <div class="freeprompt" id="freePrompt" hidden>
+            <div class="fp-head"><span class="fp-tag">OPTIONAL · FREE</span><b>Make it free in the Gemini app</b></div>
+            <ol class="fp-steps"><li>Copy the prompt below.</li><li>Open <a href="https://gemini.google.com/app" target="_blank" rel="noopener">gemini.google.com</a> or the Gemini app.</li><li>Attach your jewellery photo with the <b>+</b> button.</li><li>Paste the prompt and send. Download the image Gemini makes.</li></ol>
+            <div id="fpList"></div>
+            <p class="hint">Free Gemini accounts have a daily image limit. Gemini may not always return a full 4K file; you can still use Enhance · free here after uploading.</p>
+          </div>
           <div class="field" id="modelBox" hidden>
             <span class="lab">Model</span>
             <div class="chips" id="skinSeg"></div>
@@ -1052,6 +1068,7 @@ chipSeg($('#angleSeg'),ANGLES,st.angle,v=>st.angle=v);
 function qualHint(){const el=$('#qualHint');if(!el)return;const m=modelFor(st.q),c=inr(priceUSD(m,QUAL[st.q].size));
   el.textContent=`${QUAL[st.q].lbl} · ${m} · about ${fmtINR(c)} per photo`+(QUAL[st.q].pro?'. Slower, finest detail.':'.');}
 $$('#qualSeg .chip').forEach(b=>b.onclick=()=>{st.q=b.dataset.q;$$('#qualSeg .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));qualHint();refresh();});
+['input','change','click'].forEach(ev=>document.querySelector('[data-step="3"]').addEventListener(ev,e=>{if(e.target.closest('#freePrompt'))return;setTimeout(()=>{try{renderFreePrompt();}catch(_){}} ,0);}));
 TONES.forEach(([v,c])=>{const b=document.createElement('button');b.type='button';b.className='sw';b.title=v;b.setAttribute('aria-label',v);
   b.style.background=v==='auto'?'conic-gradient(#fff 0 25%,#141111 0 50%,#6a1626 0 75%,#efe6d6 0)':c;b.setAttribute('aria-pressed',String(v===st.tone));
   b.onclick=()=>{st.tone=v;$$('#toneSw .sw').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};$('#toneSw').appendChild(b);});
@@ -1083,6 +1100,7 @@ const totalShots=()=>st.styles.length*st.per;
 const shotsTxt=n=>`${n} shot${n===1?'':'s'}`;
 function canNext(){return st.step===1?!!st.type:st.step===2?st.styles.length>0:st.step===3?!!st.src:true;}
 function refresh(){
+  try{renderFreePrompt();}catch(e){}
   $$('.st').forEach(b=>{const n=+b.dataset.go;b.className='st'+(n<st.step?' done':n===st.step?' now':'');});
   $('#backBtn').hidden=st.step===1;
   const nb=$('#nextBtn');
@@ -1122,6 +1140,24 @@ function buildReview(){
 }
 
 /* =================== PROMPTS =================== */
+function freePrompt(s){
+  return 'Use the jewellery photo I have attached as the exact reference.\n\n'+buildPrompt(s,0)+
+    '\n\nOUTPUT: ultra-high-resolution 4K image (about 4096 px on the long side), tack-sharp macro detail on every stone facet, engraving and metal edge, true-to-life gemstone colours, no blur, no noise, no compression artefacts. Return one finished image.';
+}
+function renderFreePrompt(){
+  const box=$('#freePrompt');if(!box)return;
+  const show=st.q==='pro'&&st.styles.length&&st.type;box.hidden=!show;if(!show)return;
+  const list=$('#fpList');list.innerHTML='';
+  st.styles.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='fp-item';
+    d.innerHTML=`<div class="row"><b>${esc(s.nm)} prompt</b><button type="button" class="btn pink sm">Copy prompt</button></div><textarea readonly aria-label="${esc(s.nm)} prompt"></textarea>`;
+    const ta=d.querySelector('textarea'),btn=d.querySelector('button');ta.value=freePrompt(s);
+    btn.onclick=async()=>{try{await navigator.clipboard.writeText(ta.value);btn.textContent='Copied ✓';toast('Prompt copied. Paste it in Gemini with your photo');}
+      catch(e){ta.focus();ta.select();try{document.execCommand('copy');btn.textContent='Copied ✓';toast('Prompt copied');}catch(_){toast('Select the text and copy it manually',true);}}
+      setTimeout(()=>{btn.textContent='Copy prompt';},2500);};
+    list.appendChild(d);
+  });
+}
 function buildPrompt(s,vi){
   const t=st.type,metal=$('#metal').value;
   const keep=`REFERENCE: the attached photo shows a real ${metal?metal+' ':''}${t.p}. Reproduce THIS exact piece with complete fidelity: identical design, silhouette, proportions, number, cut, size and colour of every stone, enamel/meenakari colours, metal colour and finish, engravings and clasp. Never redesign, simplify, add or remove any element, and keep its real-world scale believable. Ignore and remove anything that is not the jewellery in the reference (price tags, labels, fingers, boxes, background).`;
