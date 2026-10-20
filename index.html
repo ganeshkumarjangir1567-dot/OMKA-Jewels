@@ -593,8 +593,8 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
             <div class="field"><span class="lab">Shots per style</span><div class="round" id="perSeg"></div></div>
           </div>
           <div class="field"><span class="lab">Quality</span>
-            <div class="chips" id="qualSeg"><button type="button" class="chip" data-q="std" aria-pressed="false">Standard · fast</button><button type="button" class="chip" data-q="hd" aria-pressed="true">HD · 2K</button><button type="button" class="chip" data-q="ultra" aria-pressed="false">Ultra HD · 4K</button></div>
-            <p class="hint" id="qualHint">HD and Ultra HD use the Pro model for sharper, bigger photos. They take a little longer and cost a bit more.</p></div>
+            <div class="chips" id="qualSeg"><button type="button" class="chip" data-q="std" aria-pressed="false">Standard · 1K</button><button type="button" class="chip" data-q="hd" aria-pressed="true">HD · 2K</button><button type="button" class="chip" data-q="ultra" aria-pressed="false">Ultra HD · 4K</button><button type="button" class="chip" data-q="pro" aria-pressed="false">Pro · best detail</button></div>
+            <p class="hint" id="qualHint"></p></div>
           <div class="field" id="modelBox" hidden>
             <span class="lab">Model</span>
             <div class="chips" id="skinSeg"></div>
@@ -724,10 +724,11 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
     <div class="blk">
       <h2 class="h">AI models</h2>
       <div class="g2">
-        <div class="field"><label class="lab" for="mStd">Standard</label><select id="mStd"><option>gemini-2.5-flash-image</option><option>gemini-3-pro-image-preview</option></select></div>
-        <div class="field"><label class="lab" for="mUltra">Ultra HD</label><select id="mUltra"><option>gemini-3-pro-image-preview</option><option>gemini-2.5-flash-image</option></select></div>
+        <div class="field"><label class="lab" for="mStd">Main model <em>(Standard, HD, Ultra HD)</em></label><select id="mStd"><option>gemini-nano-banana-2.1</option><option>gemini-3.1-flash-image</option><option>gemini-2.5-flash-image</option><option>gemini-3-pro-image</option></select></div>
+        <div class="field"><label class="lab" for="mUltra">Pro model <em>(Pro · best detail)</em></label><select id="mUltra"><option>gemini-3-pro-image</option><option>gemini-nano-banana-2.1</option></select></div>
       </div>
       <div class="row"><button type="button" class="btn sm" id="findModels">Find my image models</button><span class="status" id="modelStatus"></span></div>
+      <div class="field"><label class="lab" for="inrRate">Dollar rate <em>(₹ per $1, for cost estimates)</em></label><input type="text" id="inrRate" inputmode="decimal" placeholder="90"><p class="hint">Costs are estimates from Google's published prices. Your exact balance is on the AI Studio billing page.</p></div>
       <div class="field"><label class="lab" for="conc">Shots at the same time</label>
         <select id="conc"><option value="1">1 · free / limited key</option><option value="2">2</option><option value="3" selected>3 · recommended</option><option value="4">4</option></select></div>
     </div>
@@ -776,8 +777,13 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
       <div class="field">
         <label class="lab" for="refineTx">Refine this photo</label>
         <textarea id="refineTx" placeholder="e.g. make the background darker, add more sparkle to the necklace"></textarea>
-        <div class="row"><button type="button" class="btn sm" id="refineBtn">Refine</button><button type="button" class="btn sm" id="regenBtn">New version</button><button type="button" class="btn pink sm" id="hdBtn">Make 4K HD</button></div>
+        <div class="row"><button type="button" class="btn sm" id="refineBtn">Refine</button><button type="button" class="btn sm" id="regenBtn">New version</button></div>
         <p class="status" id="lbStatus"></p>
+      </div>
+      <div class="field">
+        <span class="lab">Improve quality</span>
+        <div class="row"><button type="button" class="btn sm" id="enhBtn">Enhance · free</button><button type="button" class="btn pink sm" id="hdBtn">Make 4K HD</button></div>
+        <p class="hint">Enhance enlarges and sharpens the photo on your device at no cost. Make 4K HD redraws it with AI for real fine detail.</p>
       </div>
       <div class="rule"></div>
       <span class="lab">Photo details</span>
@@ -916,7 +922,15 @@ const ICONS=(function(){
 })();
 
 /* =================== STATE =================== */
-const QUAL={std:{lbl:'Standard',size:null},hd:{lbl:'HD 2K',size:'2K'},ultra:{lbl:'Ultra HD 4K',size:'4K'}};
+const QUAL={std:{lbl:'Standard 1K',size:'1K',pro:false},hd:{lbl:'HD 2K',size:'2K',pro:false},ultra:{lbl:'Ultra HD 4K',size:'4K',pro:false},pro:{lbl:'Pro 4K',size:'4K',pro:true}};
+/* Google Gemini API standard-tier prices, USD per output image (Oct 2026) */
+const PRICES={'gemini-nano-banana-2.1':{'1K':0.0336,'2K':0.0504,'4K':0.113},'gemini-3-pro-image':{'1K':0.134,'2K':0.134,'4K':0.24},
+  'gemini-3.1-flash-image':{'1K':0.067,'2K':0.101,'4K':0.151},'gemini-2.5-flash-image':{'1K':0.039,'2K':0.039,'4K':0.039}};
+const INPUT_IMG_USD=0.0011;
+const priceUSD=(model,size)=>{const p=PRICES[model];if(!p)return null;const v=p[(size||'1K').toUpperCase()]??p['1K'];return v+INPUT_IMG_USD;};
+const inr=usd=>usd==null?null:usd*(+cfg.inr>0?+cfg.inr:90);
+const fmtINR=v=>v==null?'—':'₹'+(v<10?v.toFixed(2):v<100?v.toFixed(1):Math.round(v).toLocaleString('en-IN'));
+const modelFor=q=>QUAL[q].pro?cfg.ultra:cfg.std;
 const qLabel=()=>QUAL[st.q].lbl;
 const st={step:1,type:null,styles:[],size:'1:1',per:2,skin:'wheatish',q:'hd',light:'auto',angle:'auto',tone:'auto',src:null,grp:'All'};
 let customStyles=LS.get('zs-custom',[]);
@@ -1035,7 +1049,9 @@ chipSeg($('#perSeg'),[['1','1'],['2','2'],['3','3']],String(st.per),v=>{st.per=+
 chipSeg($('#skinSeg'),SKINS,st.skin,v=>st.skin=v);
 chipSeg($('#lightSeg'),LIGHTS,st.light,v=>st.light=v);
 chipSeg($('#angleSeg'),ANGLES,st.angle,v=>st.angle=v);
-$$('#qualSeg .chip').forEach(b=>b.onclick=()=>{st.q=b.dataset.q;$$('#qualSeg .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));refresh();});
+function qualHint(){const el=$('#qualHint');if(!el)return;const m=modelFor(st.q),c=inr(priceUSD(m,QUAL[st.q].size));
+  el.textContent=`${QUAL[st.q].lbl} · ${m} · about ${fmtINR(c)} per photo`+(QUAL[st.q].pro?'. Slower, finest detail.':'.');}
+$$('#qualSeg .chip').forEach(b=>b.onclick=()=>{st.q=b.dataset.q;$$('#qualSeg .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));qualHint();refresh();});
 TONES.forEach(([v,c])=>{const b=document.createElement('button');b.type='button';b.className='sw';b.title=v;b.setAttribute('aria-label',v);
   b.style.background=v==='auto'?'conic-gradient(#fff 0 25%,#141111 0 50%,#6a1626 0 75%,#efe6d6 0)':c;b.setAttribute('aria-pressed',String(v===st.tone));
   b.onclick=()=>{st.tone=v;$$('#toneSw .sw').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};$('#toneSw').appendChild(b);});
@@ -1064,6 +1080,7 @@ function loadSrc(f){
 
 /* =================== WIZARD =================== */
 const totalShots=()=>st.styles.length*st.per;
+const shotsTxt=n=>`${n} shot${n===1?'':'s'}`;
 function canNext(){return st.step===1?!!st.type:st.step===2?st.styles.length>0:st.step===3?!!st.src:true;}
 function refresh(){
   $$('.st').forEach(b=>{const n=+b.dataset.go;b.className='st'+(n<st.step?' done':n===st.step?' now':'');});
@@ -1074,8 +1091,8 @@ function refresh(){
   const b=$('#sumB'),s=$('#sumS');
   if(st.step===1){b.textContent=st.type?st.type.nm:'Choose jewellery';s.textContent='Step 1 of 4 · Jewellery type';}
   else if(st.step===2){b.textContent=st.styles.length?`${st.styles.length} style selected`:'Choose a style';s.textContent=st.styles.length?st.styles.map(x=>x.nm).join(', ')+' · '+st.size:'Step 2 of 4 · Max 4 styles';}
-  else if(st.step===3){b.textContent=st.src?'Photo ready ✓':'Upload a photo';s.textContent=`${totalShots()} shots · ${qLabel()}`;}
-  else{b.textContent=`${totalShots()} shots`;s.textContent=`${st.type.nm} · ${st.size} · ${qLabel()}`;}
+  else if(st.step===3){b.textContent=st.src?'Photo ready ✓':'Upload a photo';s.textContent=`${shotsTxt(totalShots())} · ${qLabel()}`;}
+  else{const est=priceUSD(modelFor(st.q),QUAL[st.q].size);b.textContent=`${shotsTxt(totalShots())} · ≈ ${fmtINR(est==null?null:inr(est*totalShots()))}`;s.textContent=`${st.type.nm} · ${st.size} · ${qLabel()}`;}
 }
 function go(n){
   if(n>1&&!st.type)n=1;if(n>2&&!st.styles.length)n=2;if(n>3&&!st.src)n=3;
@@ -1094,12 +1111,14 @@ function buildReview(){
   if(st.styles.some(s=>s.model))pills.push(lab(SKINS,st.skin)+' model');
   if(st.light!=='auto')pills.push(lab(LIGHTS,st.light));if(st.angle!=='auto')pills.push(lab(ANGLES,st.angle)+' angle');if(st.tone!=='auto')pills.push(st.tone);
   $('#revPills').innerHTML=pills.map(p=>`<i>${esc(p)}</i>`).join('');
-  $('#pd').innerHTML=`<span class="t">Shoot details (${totalShots()} shots)</span>`+
-    st.styles.map(s=>`<div class="l"><span>${esc(s.nm)}</span><span>${st.per} × ${st.size}</span></div>`).join('')+
-    `<div class="l"><span>Studio rent</span><span class="g">₹0</span></div><div class="l"><span>Photographer</span><span class="g">₹0</span></div>`+
+  $('#pd').innerHTML=`<span class="t">Shoot details (${shotsTxt(totalShots())})</span>`+
+    st.styles.map(s=>`<div class="l"><span>${esc(s.nm)}</span><span>${st.per} × ${fmtINR(inr(priceUSD(modelFor(st.q),QUAL[st.q].size)))}</span></div>`).join('')+
+    `<div class="l"><span>Quality</span><span>${qLabel()}</span></div>`+
+    `<div class="l"><span>Model</span><span style="font-size:12.5px">${esc(modelFor(st.q))}</span></div>`+
     `<div class="l"><span>Brand watermark</span><span class="${bk.on?'g':''}">${bk.on?'ON':'Off'}</span></div>`+
-    `<div class="l tot"><span>Total shots</span><span>${totalShots()}</span></div>`+
-    `<p class="hint">Image generation is billed directly to your Google Gemini account.</p>`;
+    `<div class="l"><span>Total shots</span><span>${totalShots()}</span></div>`+
+    `<div class="l tot"><span>Estimated Gemini cost</span><span>${(()=>{const u=priceUSD(modelFor(st.q),QUAL[st.q].size);return fmtINR(u==null?null:inr(u*totalShots()));})()}</span></div>`+
+    `<p class="hint">Estimate from Google's prices at ₹${cfg.inr} per $1. Failed shots are usually not charged. Your exact balance is on the AI Studio billing page.</p>`;
 }
 
 /* =================== PROMPTS =================== */
@@ -1122,12 +1141,17 @@ function buildPrompt(s,vi){
 /* =================== API =================== */
 const API='https://generativelanguage.googleapis.com/v1beta';
 const keyEl=$('#apiKey');keyEl.value='';
-const cfg=Object.assign({std:'gemini-2.5-flash-image',ultra:'gemini-3-pro-image-preview',conc:3},LS.get('zs-cfg',{}));
+const cfg=Object.assign({std:'gemini-nano-banana-2.1',ultra:'gemini-3-pro-image',conc:3,inr:90},LS.get('zs-cfg',{}));
+if(cfg.std==='gemini-2.5-flash-image'||/preview/.test(cfg.std))cfg.std='gemini-nano-banana-2.1';
+if(/gemini-3-pro-image-preview/.test(cfg.ultra)||cfg.ultra==='gemini-2.5-flash-image')cfg.ultra='gemini-3-pro-image';
+LS.set('zs-cfg',cfg);
 function addOpt(sel,v){if(![...sel.options].some(o=>o.value===v))sel.add(new Option(v,v));}
 addOpt($('#mStd'),cfg.std);addOpt($('#mUltra'),cfg.ultra);$('#mStd').value=cfg.std;$('#mUltra').value=cfg.ultra;$('#conc').value=String(cfg.conc);
 $('#mStd').onchange=()=>{cfg.std=$('#mStd').value;LS.set('zs-cfg',cfg);};
 $('#mUltra').onchange=()=>{cfg.ultra=$('#mUltra').value;LS.set('zs-cfg',cfg);};
 $('#conc').onchange=()=>{cfg.conc=+$('#conc').value;LS.set('zs-cfg',cfg);};
+$('#inrRate').value=cfg.inr;
+$('#inrRate').onchange=()=>{const v=parseFloat($('#inrRate').value);if(v>0&&v<1000){cfg.inr=v;LS.set('zs-cfg',cfg);toast('Dollar rate saved');statUI();qualHint();}else{$('#inrRate').value=cfg.inr;toast('Enter a number like 90',true);}};
 let savedKey=LS.get('zs-key',''),verified=LS.get('zs-verified',false);
 const mask=k=>k.length>10?k.slice(0,4)+' •••• •••• '+k.slice(-4):'••••••••';
 function keyUI(editing){
@@ -1213,7 +1237,7 @@ function placeholder(label,ratio){const c=document.createElement('div');c.classN
   const t=c.querySelector('.ldtx');let i=0;c._iv=setInterval(()=>{t.textContent=LOADING[++i%LOADING.length];},2600);return c;}
 function shotTile(o){
   const c=document.createElement('div');c.className='tile';c.dataset.id=o.id;
-  c.innerHTML=`<div class="im" style="aspect-ratio:${ar(o.ratio)}">${o.hd?'<span class="flag teal">4K HD</span>':o.parent?'<span class="flag orange">Refined</span>':''}<img alt="${esc(o.styleNm)}" loading="lazy">
+  c.innerHTML=`<div class="im" style="aspect-ratio:${ar(o.ratio)}">${o.enh?'<span class="flag">Enhanced</span>':o.hd?'<span class="flag teal">4K HD</span>':o.parent?'<span class="flag orange">Refined</span>':''}<img alt="${esc(o.styleNm)}" loading="lazy">
      <button type="button" class="heart${o.fav?' on':''}" aria-label="Favourite" aria-pressed="${!!o.fav}">${HEART}</button><span class="rate"><i>★</i>AI<span>${o.ratio}</span></span></div>
    <span class="tb"><span class="br">${esc(o.styleNm)}</span><span class="ds">${esc(o.typeNm)}${o.metal?' · '+esc(o.metal):''}</span><button type="button" class="dlb">Download</button></span>`;
   c.querySelector('img').src=o.url;
@@ -1232,7 +1256,7 @@ async function runPool(tasks,n){let i=0;await Promise.all(Array.from({length:Mat
 async function shoot(){
   if(busy)return;
   if(!savedKey){toast('Please add your Gemini API key in Profile first',true);showView('settings');return;}
-  const per=st.per,model=st.q==='std'?cfg.std:cfg.ultra,qsize=QUAL[st.q].size,ratio=st.size,type=st.type,src=st.src,metal=$('#metal').selectedOptions[0].textContent;
+  const per=st.per,model=modelFor(st.q),qsize=QUAL[st.q].size,ratio=st.size,type=st.type,src=st.src,metal=$('#metal').selectedOptions[0].textContent;
   await srcPut({id:src.id,url:src.url});
   busy=true;refresh();
   $('#resHead').hidden=false;$('#meter').hidden=false;const bar=$('#meter i');bar.style.width='4%';
@@ -1243,7 +1267,7 @@ async function shoot(){
     const prompt=buildPrompt(s,v),ph=placeholder(s.nm,ratio);$('#results').prepend(ph);
     const job=async card=>{
       try{const url=await gen(prompt,src,ratio,model,qsize);
-        const o={id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,ratio,typeId:type.id,typeNm:type.nm,metal,styleId:s.id,styleNm:s.nm,srcId:src.id,prompt,model,qsize,fav:false,uid:authUser?authUser.uid:null};
+        const o={id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,ratio,typeId:type.id,typeNm:type.nm,metal,styleId:s.id,styleNm:s.nm,srcId:src.id,prompt,model,qsize,cost:priceUSD(model,qsize),fav:false,uid:authUser?authUser.uid:null};
         await dbPut(o);clearInterval(card._iv);card.replaceWith(shotTile(o));ok++;bump('made');badges();return true;}
       catch(e){failTile(card,e.message,()=>{const np=placeholder(s.nm,ratio);card.replaceWith(np);job(np);});return false;}
     };
@@ -1374,10 +1398,15 @@ bkSync();
 let cur=null,cmpOn=false,cmpPos=50;
 async function openPDP(id){
   const o=await dbGet(id);if(!o)return;cur=o;
-  $('#lbAfter').onload=()=>{const r=$('#lbRes');if(r)r.textContent=`${$('#lbAfter').naturalWidth} × ${$('#lbAfter').naturalHeight} px`;};$('#lbAfter').src=o.url;$('#lbBar').textContent=o.styleNm;$('#lbTitle').textContent=o.styleNm;$('#lbSub').textContent=`${o.typeNm}${o.metal?' · '+o.metal:''}`;
-  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${o.ratio}</dd><dt>Resolution</dt><dd id="lbRes">…</dd><dt>Quality</dt><dd>${o.qsize?(o.qsize.toUpperCase()==='4K'?'Ultra HD 4K':'HD '+o.qsize.toUpperCase()):'Standard'}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?'<dt>Type</dt><dd>Refined version</dd>':''}`;
+  $('#lbAfter').onload=()=>{const w=$('#lbAfter').naturalWidth,h=$('#lbAfter').naturalHeight,r=$('#lbRes');if(r)r.textContent=`${w} × ${h} px`;
+  if(cur&&cur.id===o.id&&(cur.w!==w||cur.h!==h)){cur.w=w;cur.h=h;dbPut(cur);}const big=Math.max(w,h)>=4096;$('#enhBtn').disabled=big;$('#enhBtn').textContent=big?'Already 4K':'Enhance · free';};$('#lbAfter').src=o.url;$('#lbBar').textContent=o.styleNm;$('#lbTitle').textContent=o.styleNm;$('#lbSub').textContent=`${o.typeNm}${o.metal?' · '+o.metal:''}`;
+  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${o.ratio}</dd><dt>Resolution</dt><dd id="lbRes">…</dd><dt>Gemini cost</dt><dd>${o.enh?"Free (enhanced on device)":o.cost!=null?"≈ "+fmtINR(inr(o.cost)):"—"}</dd><dt>Quality</dt><dd>${o.enh?'Enhanced to 4K':o.qsize?(o.qsize.toUpperCase()==='4K'?'Ultra HD 4K':'HD '+o.qsize.toUpperCase()):'Standard'}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?`<dt>Type</dt><dd>${o.enh?'Enhanced copy (free)':o.hd?'4K HD version':'Refined version'}</dd>`:''}`;
   $('#lbPrompt').textContent=o.prompt||'';$('#refineTx').value='';setS($('#lbStatus'),'');$('#lbDelYes').hidden=true;favUI();
-  const s=o.srcId?await srcGet(o.srcId):null;$('#cmpToggle').disabled=!s;if(s)$('#lbBefore').src=s.url;
+  const par=(o.enh||o.hd)&&o.parent?await dbGet(o.parent):null;
+  const s=par?{url:par.url}:(o.srcId?await srcGet(o.srcId):null);$('#cmpToggle').disabled=!s;if(s)$('#lbBefore').src=s.url;
+  $('#lblB').textContent=par?'BEFORE':'ORIGINAL';$('#lblA').textContent=o.enh?'ENHANCED':o.hd?'4K HD':'AI';
+  const hdc=priceUSD(cfg.std,'4K');$('#hdBtn').textContent=`Make 4K HD · ~${fmtINR(inr(hdc))}`;
+  const already=Math.max(o.w||0,o.h||0)>=4096;$('#enhBtn').disabled=!!already;$('#enhBtn').textContent=already?'Already 4K':'Enhance · free';
   setCmp(false);if(!$('#lb').open)$('#lb').showModal();$('.pdpin').scrollTop=0;
 }
 function favUI(){const on=!!cur.fav;$('#lbFav').classList.toggle('pink',on);$('#lbFav').lastChild.textContent=on?'Favourited':'Favourite';$('#lbFavTop').style.color=on?'var(--pink)':'';$('#lbFavTop').querySelector('svg').style.fill=on?'currentColor':'none';}
@@ -1404,9 +1433,9 @@ async function pdpGen(kind){
   else{const s=base.srcId?await srcGet(base.srcId):null;if(!s||!base.prompt){setS($('#lbStatus'),'Original photo not found.','err');return;}
     prompt=base.prompt+' Create a fresh alternate take with a different composition.';img=await toImg(s.url).catch(()=>null);if(!img){setS($('#lbStatus'),'Could not load the original photo.','err');return;}}
   $('#refineBtn').disabled=$('#regenBtn').disabled=$('#hdBtn').disabled=true;setS($('#lbStatus'),kind==='hd'?'Making a 4K HD version… up to a minute':kind==='refine'?'Refining… 10–40 seconds':'Creating a new version…');
-  const useModel=kind==='hd'?cfg.ultra:(base.model||cfg.std),useSize=kind==='hd'?'4K':(base.qsize||null);
+  const useModel=kind==='hd'?cfg.std:(PRICES[base.model]?base.model:cfg.std),useSize=kind==='hd'?'4K':(base.qsize||'1K');
   try{const url=await gen(prompt,img,base.ratio,useModel,useSize);
-    const o=Object.assign({},base,{id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,fav:false,parent:kind!=='regen'?base.id:undefined,model:useModel,qsize:useSize,hd:kind==='hd'||undefined,prompt:kind==='refine'?base.prompt+'\n\nREFINE: '+$('#refineTx').value.trim():base.prompt});
+    const o=Object.assign({},base,{id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,fav:false,parent:kind!=='regen'?base.id:undefined,model:useModel,qsize:useSize,cost:priceUSD(useModel,useSize),hd:kind==='hd'||undefined,prompt:kind==='refine'?base.prompt+'\n\nREFINE: '+$('#refineTx').value.trim():base.prompt});
     o.uid=authUser?authUser.uid:null;await dbPut(o);bump('made');badges();
     if(!$('#v-create').hidden&&st.step===4)$('#results').prepend(shotTile(o));
     if(!$('#v-gallery').hidden)galleryUI();
@@ -1416,6 +1445,22 @@ async function pdpGen(kind){
 }
 $('#refineBtn').onclick=()=>pdpGen('refine');
 $('#hdBtn').onclick=()=>pdpGen('hd');
+$('#enhBtn').onclick=async()=>{
+  const base=cur,btn=$('#enhBtn');btn.disabled=true;setS($('#lbStatus'),'Enhancing on your device…');
+  try{
+    await new Promise(r=>setTimeout(r,40));
+    const im=await loadImg(base.url),big=enhanceTo(im,4096);
+    if(!big){setS($('#lbStatus'),'This photo is already 4K.','ok');return;}
+    const c=document.createElement('canvas');c.width=big.width;c.height=big.height;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(big,0,0);
+    const url=c.toDataURL('image/jpeg',.94);
+    const o=Object.assign({},base,{id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url,fav:false,dl:false,parent:base.id,enh:true,hd:undefined,cost:0,w:c.width,h:c.height,uid:authUser?authUser.uid:null});
+    await dbPut(o);badges();
+    if(!$('#v-create').hidden&&st.step===4)$('#results').prepend(shotTile(o));
+    if(!$('#v-gallery').hidden)galleryUI();
+    toast('Enhanced 4K copy saved ✓ Free');openPDP(o.id);setTimeout(()=>setCmp(true),300);
+  }catch(e){setS($('#lbStatus'),'Could not enhance this photo on this device: '+e.message,'err');}
+  finally{btn.disabled=false;}
+};
 $('#regenBtn').onclick=()=>pdpGen('regen');
 
 
@@ -1452,7 +1497,7 @@ document.addEventListener('mouseout',e=>{
 
 /* =================== VIEWS =================== */
 async function statUI(){const all=await dbAll();
-  $('#stats').innerHTML=`<div><b>${all.length}</b><span>Photos</span></div><div><b>${stats.shoots||0}</b><span>Shoots</span></div><div><b>${all.filter(o=>o.fav).length}</b><span>Favourites</span></div>`;}
+  $('#stats').innerHTML=`<div><b>${all.length}</b><span>Photos</span></div><div><b>${(()=>{const now=new Date(),m=all.filter(o=>o.cost!=null&&new Date(o.t).getMonth()===now.getMonth()&&new Date(o.t).getFullYear()===now.getFullYear()).reduce((a,o)=>a+o.cost,0);return fmtINR(inr(m));})()}</b><span>Gemini · this month</span></div><div><b>${all.filter(o=>o.fav).length}</b><span>Favourites</span></div>`;}
 function showView(v){
   $$('[data-view]').forEach(b=>{if(b.closest('.tnav')||b.closest('.tabs')){if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}});
   ['create','gallery','brand','settings'].forEach(n=>$('#v-'+n).hidden=n!==v);
@@ -1522,7 +1567,7 @@ window.addEventListener('omka-auth',e=>{
 gateState(fbReady?'load':'dev');headerUser();
 if(!fbReady)log('info','OMKA Studio: Firebase settings are empty, so login is off (local mode).');
 
-[renderGrpChips,renderStyles,()=>go(1),badges].forEach(f=>{try{const r=f();if(r&&r.catch)r.catch(e=>log('error',e));}catch(e){log('error','OMKA init:',e);}});
+[renderGrpChips,renderStyles,()=>go(1),badges,qualHint].forEach(f=>{try{const r=f();if(r&&r.catch)r.catch(e=>log('error',e));}catch(e){log('error','OMKA init:',e);}});
 if(!savedKey){showView('settings');setTimeout(()=>toast('Add your Gemini API key to get started'),400);}
 })();
 </script>
