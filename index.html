@@ -86,7 +86,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   .tnav{display:none}
   .logo small{display:none}
   .ticon span.l{display:none}
-  .tabs{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--white);border-top:1px solid var(--line);
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--white);border-top:1px solid var(--line);
     padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
   .tabs button{all:unset;cursor:pointer;height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--soft)}
   .tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
@@ -368,6 +368,13 @@ main{padding-top:8px}
 details.acc summary{padding:12px 14px}
 details.acc > div{padding:2px 14px 14px;gap:12px}
 #v-create{padding-bottom:76px}
+.excmp{position:relative;max-width:560px;width:100%;align-self:center;background:var(--canvas);border-radius:4px;overflow:hidden}
+.excmp img{display:block;width:100%;height:auto}
+.excmp .before{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;clip-path:inset(0 50% 0 0);background:var(--canvas)}
+.excmp .lb{position:absolute;bottom:10px;background:rgba(40,44,63,.75);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 8px;border-radius:2px}
+#exSlide{max-width:560px;width:100%;align-self:center}
+.excmp .exh{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--pink);transform:translateX(-1px);pointer-events:none}
+#v-enhance .blk .btn.pink#exGo{width:100%;padding:14px}
 .freeprompt{border:1px dashed var(--pink);background:var(--pink-bg);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .fp-head{display:flex;flex-direction:column;gap:4px}
 .fp-head b{font-size:15px}
@@ -515,6 +522,7 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
     <nav class="tnav" aria-label="Menu">
       <button type="button" data-view="create" aria-current="page">Create</button>
       <button type="button" data-view="gallery">Gallery</button>
+      <button type="button" data-view="enhance">Enhance</button>
       <button type="button" data-view="brand">Brand Kit</button>
       <button type="button" data-view="settings">Settings</button>
     </nav>
@@ -678,6 +686,40 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
     <div class="grid" id="galGrid"></div>
   </div>
 
+  <!-- ========================= ENHANCE ========================= -->
+  <div class="view" id="v-enhance" hidden>
+    <div class="blk"><h2 class="h">Enhance photo<small>Make any photo bigger and sharper, free, right on your device. Works for photos from the Gemini app, ChatGPT or your phone camera.</small></h2></div>
+    <div class="two">
+      <div class="blk">
+        <div class="drop" id="exDrop" tabindex="0" role="button" aria-label="Choose a photo to enhance">
+          <img id="exPrev" alt="Photo to enhance" hidden>
+          <span class="ic" id="exIc"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></span>
+          <b id="exBig">Upload a photo</b>
+          <span class="hint" id="exHint">Tap to choose, or drag a photo here · JPG / PNG</span>
+        </div>
+        <input type="file" id="exFile" accept="image/*" hidden>
+      </div>
+      <div class="blk">
+        <div class="field"><span class="lab">Output size</span><div class="chips" id="exSize"><button type="button" class="chip" data-v="2048" aria-pressed="false">2K</button><button type="button" class="chip" data-v="4096" aria-pressed="true">4K</button></div></div>
+        <div class="field"><span class="lab">Sharpness</span><div class="chips" id="exSharp"><button type="button" class="chip" data-v="0.3" aria-pressed="false">Soft</button><button type="button" class="chip" data-v="0.55" aria-pressed="true">Normal</button><button type="button" class="chip" data-v="0.9" aria-pressed="false">Strong</button></div></div>
+        <button type="button" class="btn pink" id="exGo" disabled>Enhance · free</button>
+        <p class="status" id="exStatus" role="status"></p>
+        <p class="hint">Enhance enlarges and sharpens the photo. It cannot add new fine detail the way AI can. For that, use Make 4K HD on a photo in your gallery.</p>
+      </div>
+    </div>
+    <div class="blk" id="exResult" hidden>
+      <h2 class="h">Result<small id="exInfo"></small></h2>
+      <div class="excmp" id="exCmp">
+        <img id="exAfter" alt="Enhanced photo">
+        <img id="exBefore" class="before" alt="Original photo">
+        <span class="exh" id="exHandle"></span>
+        <span class="lb" style="left:10px">BEFORE</span><span class="lb" style="right:10px">ENHANCED</span>
+      </div>
+      <input type="range" id="exSlide" min="0" max="100" value="50" aria-label="Compare before and after">
+      <div class="row"><button type="button" class="btn pink" id="exDl">Download</button><button type="button" class="btn" id="exSave">Save to gallery</button></div>
+    </div>
+  </div>
+
   <!-- ========================= BRAND ========================= -->
   <div class="view" id="v-brand" hidden>
     <div class="blk"><h2 class="h">Brand Kit<small>Your logo or shop name is added to every photo you download.</small></h2></div>
@@ -759,6 +801,7 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
 <nav class="tabs" aria-label="Menu">
   <button type="button" data-view="create" aria-current="page"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg>Create</button>
   <button type="button" data-view="gallery"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 16l5-5 4 4 3-3 5 5"/></svg>Gallery</button>
+  <button type="button" data-view="enhance"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 15.2 8.8"/><path d="M13.4 7l3.6 3.6"/><path d="M18.5 2.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/><path d="M8.5 3.5v3M7 5h3"/><path d="M20 13v3M18.5 14.5h3"/></svg>Enhance</button>
   <button type="button" data-view="brand"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>Brand</button>
 </nav>
 
@@ -951,10 +994,27 @@ const qLabel=()=>QUAL[st.q].lbl;
 const st={step:1,type:null,styles:[],size:'1:1',per:2,skin:'wheatish',q:'hd',light:'auto',angle:'auto',tone:'auto',src:null,grp:'All'};
 let customStyles=LS.get('zs-custom',[]);
 const allStyles=()=>BUILTIN_STYLES.concat(customStyles);
+/* remember every choice except the uploaded photo */
+const WIZ=LS.get('zs-wiz',{});
+(function restoreWiz(){
+  if(WIZ.typeId)st.type=TYPES.find(t=>t.id===WIZ.typeId)||null;
+  if(Array.isArray(WIZ.styleIds))st.styles=WIZ.styleIds.map(id=>allStyles().find(x=>x.id===id)).filter(Boolean).slice(0,4);
+  ['size','per','skin','q','light','angle','tone','grp'].forEach(k=>{if(WIZ[k]!=null)st[k]=WIZ[k];});
+  if(!QUAL[st.q])st.q='hd';
+  const setVal=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&[...(el.options||[{value:v}])].some(o=>o.value===v))el.value=v;};
+  setVal('metal',WIZ.metal);setVal('outfit',WIZ.outfit);setVal('hair',WIZ.hair);
+  if(WIZ.extra!=null)$('#extra').value=WIZ.extra;
+  $$('#qualSeg .chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.q===st.q)));
+})();
+function saveWiz(){
+  LS.set('zs-wiz',{typeId:st.type?st.type.id:null,styleIds:st.styles.map(x=>x.id),size:st.size,per:st.per,skin:st.skin,q:st.q,light:st.light,angle:st.angle,tone:st.tone,grp:st.grp,
+    metal:$('#metal').value,outfit:$('#outfit').value,hair:$('#hair').value,extra:$('#extra').value,step:st.step,exSize:(()=>{try{return ex.size}catch(e){return WIZ.exSize}})(),exAmt:(()=>{try{return ex.amt}catch(e){return WIZ.exAmt}})(),filter:(()=>{try{return filter}catch(e){return WIZ.filter}})()});
+}
+['change','input'].forEach(ev=>['metal','outfit','hair','extra'].forEach(id=>document.getElementById(id).addEventListener(ev,()=>saveWiz())));
 
 /* =================== STEP 1 =================== */
 TYPES.forEach(t=>{
-  const b=document.createElement('button');b.type='button';b.className='cat';b.setAttribute('aria-pressed','false');
+  const b=document.createElement('button');b.type='button';b.className='cat';b.setAttribute('aria-pressed',String(!!st.type&&st.type.id===t.id));
   b.innerHTML=`<span class="face" style="background:${t.bg}">${ICONS[t.id]||""}<span class="dv">${t.dv}</span></span><span class="nm">${t.nm}</span><span class="sb">${t.sb}</span>`;
   b.onclick=()=>{st.type=t;$$('.cat').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));try{renderStyles();}catch(e){log('error',e);}refresh();};
   $('#cats').appendChild(b);
@@ -1062,16 +1122,16 @@ SIZES.forEach(z=>{
 
 /* =================== STEP 3 =================== */
 chipSeg($('#perSeg'),[['1','1'],['2','2'],['3','3']],String(st.per),v=>{st.per=+v;refresh();},'rc');
-chipSeg($('#skinSeg'),SKINS,st.skin,v=>st.skin=v);
-chipSeg($('#lightSeg'),LIGHTS,st.light,v=>st.light=v);
-chipSeg($('#angleSeg'),ANGLES,st.angle,v=>st.angle=v);
+chipSeg($('#skinSeg'),SKINS,st.skin,v=>{st.skin=v;saveWiz();});
+chipSeg($('#lightSeg'),LIGHTS,st.light,v=>{st.light=v;saveWiz();});
+chipSeg($('#angleSeg'),ANGLES,st.angle,v=>{st.angle=v;saveWiz();});
 function qualHint(){const el=$('#qualHint');if(!el)return;const m=modelFor(st.q),c=inr(priceUSD(m,QUAL[st.q].size));
   el.textContent=`${QUAL[st.q].lbl} · ${m} · about ${fmtINR(c)} per photo`+(QUAL[st.q].pro?'. Slower, finest detail.':'.');}
 $$('#qualSeg .chip').forEach(b=>b.onclick=()=>{st.q=b.dataset.q;$$('#qualSeg .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));qualHint();refresh();});
 ['input','change','click'].forEach(ev=>document.querySelector('[data-step="3"]').addEventListener(ev,e=>{if(e.target.closest('#freePrompt'))return;setTimeout(()=>{try{renderFreePrompt();}catch(_){}} ,0);}));
 TONES.forEach(([v,c])=>{const b=document.createElement('button');b.type='button';b.className='sw';b.title=v;b.setAttribute('aria-label',v);
   b.style.background=v==='auto'?'conic-gradient(#fff 0 25%,#141111 0 50%,#6a1626 0 75%,#efe6d6 0)':c;b.setAttribute('aria-pressed',String(v===st.tone));
-  b.onclick=()=>{st.tone=v;$$('#toneSw .sw').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};$('#toneSw').appendChild(b);});
+  b.onclick=()=>{st.tone=v;saveWiz();$$('#toneSw .sw').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));};$('#toneSw').appendChild(b);});
 const drop=$('#drop'),file=$('#file');
 drop.onclick=()=>file.click();
 drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}};
@@ -1101,6 +1161,7 @@ const shotsTxt=n=>`${n} shot${n===1?'':'s'}`;
 function canNext(){return st.step===1?!!st.type:st.step===2?st.styles.length>0:st.step===3?!!st.src:true;}
 function refresh(){
   try{renderFreePrompt();}catch(e){}
+  try{saveWiz();}catch(e){}
   $$('.st').forEach(b=>{const n=+b.dataset.go;b.className='st'+(n<st.step?' done':n===st.step?' now':'');});
   $('#backBtn').hidden=st.step===1;
   const nb=$('#nextBtn');
@@ -1317,7 +1378,7 @@ async function shoot(){
 }
 
 /* =================== GALLERY =================== */
-let filter='all';
+let filter=WIZ.filter||'all';
 const matchF=o=>filter==='all'||(filter==='fav'?o.fav:o.typeNm===filter.slice(2));
 let unsavedCount=0;
 async function badges(){const all=await dbAll();unsavedCount=all.filter(o=>!o.dl).length;
@@ -1339,7 +1400,7 @@ async function galleryUI(){
   const types=[...new Set(all.map(o=>o.typeNm))];
   const opts=[['all',`All (${all.length})`],['fav',`♥ Favourites (${all.filter(o=>o.fav).length})`]].concat(types.map(t=>['t:'+t,t]));
   if(!opts.some(o=>o[0]===filter))filter='all';
-  chipSeg($('#filters'),opts,filter,v=>{filter=v;galleryUI();});
+  chipSeg($('#filters'),opts,filter,v=>{filter=v;saveWiz();galleryUI();});
   const list=all.filter(matchF);
   $('#galSub').textContent=`${all.length} photos · saved in this browser`;
   $('#galEmpty').hidden=all.length>0;$('#zipBtn').disabled=!list.length;$('.fbar').hidden=!all.length;
@@ -1388,13 +1449,13 @@ function boxBlur(src,W,H){const tmp=new Uint8ClampedArray(src.length),out=new Ui
 function sharpen(c,amount){const x=c.getContext('2d'),W=c.width,H=c.height,id=x.getImageData(0,0,W,H),d=id.data,b=boxBlur(d,W,H);
   for(let i=0;i<d.length;i+=4){d[i]=d[i]+amount*(d[i]-b[i]);d[i+1]=d[i+1]+amount*(d[i+1]-b[i+1]);d[i+2]=d[i+2]+amount*(d[i+2]-b[i+2]);}
   x.putImageData(id,0,0);}
-function enhanceTo(im,target){
+function enhanceTo(im,target,amount){
   let src=im,w=im.naturalWidth||im.width,h=im.naturalHeight||im.height;
   if(!target||Math.max(w,h)>=target)return null;
   while(Math.max(w,h)<target){const f=Math.min(2,target/Math.max(w,h)),nw=Math.round(w*f),nh=Math.round(h*f);
     const c=document.createElement('canvas');c.width=nw;c.height=nh;const x=c.getContext('2d');
     x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,0,0,nw,nh);src=c;w=nw;h=nh;}
-  sharpen(src,.55);return src;}
+  sharpen(src,amount==null?.55:amount);return src;}
 async function branded(url,useBrand){
   const im=await loadImg(url);let big=null;
   const target=bk.up==='4K'?4096:bk.up==='2K'?2048:0;
@@ -1500,6 +1561,46 @@ $('#enhBtn').onclick=async()=>{
 $('#regenBtn').onclick=()=>pdpGen('regen');
 
 
+
+/* =================== ENHANCE ANY PHOTO =================== */
+const ex={img:null,url:null,out:null,w:0,h:0,size:+WIZ.exSize||4096,amt:WIZ.exAmt!=null?+WIZ.exAmt:.55,name:'photo'};
+chipSeg($('#exSize'),[['2048','2K'],['4096','4K']],String(ex.size),v=>{ex.size=+v;saveWiz();});
+chipSeg($('#exSharp'),[['0.3','Soft'],['0.55','Normal'],['0.9','Strong']],String(ex.amt),v=>{ex.amt=+v;saveWiz();});
+const exDrop=$('#exDrop'),exFile=$('#exFile');
+exDrop.onclick=()=>exFile.click();
+exDrop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();exFile.click();}};
+['dragenter','dragover'].forEach(ev=>exDrop.addEventListener(ev,e=>{e.preventDefault();exDrop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>exDrop.addEventListener(ev,e=>{e.preventDefault();exDrop.classList.remove('over');}));
+exDrop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)exLoad(f);});
+exFile.onchange=()=>{if(exFile.files[0])exLoad(exFile.files[0]);exFile.value='';};
+function exLoad(f){
+  if(!f.type.startsWith('image/')){toast('This is not an image file',true);return;}
+  const r=new FileReader();
+  r.onload=()=>{const u=r.result;loadImg(u).then(im=>{ex.img=im;ex.url=u;ex.out=null;ex.name=(f.name||'photo').replace(/\.[^.]+$/,'');
+    $('#exPrev').src=u;$('#exPrev').hidden=false;$('#exIc').hidden=true;$('#exBig').textContent=`${im.naturalWidth} × ${im.naturalHeight} px`;$('#exHint').textContent='Tap to choose a different photo';
+    $('#exGo').disabled=false;$('#exResult').hidden=true;setS($('#exStatus'),'');}).catch(()=>toast('Could not open the photo. Try a JPG or PNG',true));};
+  r.onerror=()=>toast('Could not read the photo',true);r.readAsDataURL(f);
+}
+$('#exGo').onclick=async()=>{
+  if(!ex.img)return;const btn=$('#exGo');btn.disabled=true;setS($('#exStatus'),'Enhancing on your device… this can take a few seconds');
+  await new Promise(r=>setTimeout(r,40));
+  try{
+    let c=enhanceTo(ex.img,ex.size,ex.amt);
+    if(!c){c=document.createElement('canvas');c.width=ex.img.naturalWidth;c.height=ex.img.naturalHeight;c.getContext('2d').drawImage(ex.img,0,0);sharpen(c,ex.amt);}
+    const f=document.createElement('canvas');f.width=c.width;f.height=c.height;const x=f.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,f.width,f.height);x.drawImage(c,0,0);
+    ex.out=f.toDataURL('image/jpeg',.94);ex.w=f.width;ex.h=f.height;
+    $('#exAfter').src=ex.out;$('#exBefore').src=ex.url;$('#exSlide').value=50;$('#exBefore').style.clipPath='inset(0 50% 0 0)';$('#exHandle').style.left='50%';
+    $('#exInfo').textContent=`${ex.img.naturalWidth} × ${ex.img.naturalHeight} px → ${ex.w} × ${ex.h} px · Free`;
+    $('#exResult').hidden=false;setS($('#exStatus'),'Done ✓ Compare below, then download or save.','ok');
+    setTimeout(()=>$('#exResult').scrollIntoView({behavior:'smooth',block:'start'}),60);
+  }catch(e){setS($('#exStatus'),'This photo is too large for this device. Try 2K. ('+e.message+')','err');}
+  btn.disabled=false;
+};
+$('#exSlide').oninput=()=>{const v=$('#exSlide').value;$('#exBefore').style.clipPath=`inset(0 ${100-v}% 0 0)`;$('#exHandle').style.left=v+'%';};
+function exShot(){return {id:'z'+Date.now()+Math.random().toString(36).slice(2,7),t:Date.now(),url:ex.out,ratio:`${ex.w}:${ex.h}`,typeNm:'Uploaded photo',styleNm:'Enhanced photo',metal:'',enh:true,cost:0,w:ex.w,h:ex.h,fav:false,uid:authUser?authUser.uid:null};}
+$('#exDl').onclick=async()=>{if(!ex.out)return;const o=exShot();o.id='x'+o.id;await download(Object.assign(o,{typeNm:ex.name}),true);};
+$('#exSave').onclick=async()=>{if(!ex.out)return;const o=exShot();await dbPut(o);badges();toast('Saved to gallery ✓');$('#exSave').disabled=true;setTimeout(()=>$('#exSave').disabled=false,1500);};
+
 /* =================== SAVE BEFORE LEAVING =================== */
 let afterSave=null,exitShown=false;
 async function openSaveDlg(reason,then){
@@ -1536,7 +1637,7 @@ async function statUI(){const all=await dbAll();
   $('#stats').innerHTML=`<div><b>${all.length}</b><span>Photos</span></div><div><b>${(()=>{const now=new Date(),m=all.filter(o=>o.cost!=null&&new Date(o.t).getMonth()===now.getMonth()&&new Date(o.t).getFullYear()===now.getFullYear()).reduce((a,o)=>a+o.cost,0);return fmtINR(inr(m));})()}</b><span>Gemini · this month</span></div><div><b>${all.filter(o=>o.fav).length}</b><span>Favourites</span></div>`;}
 function showView(v){
   $$('[data-view]').forEach(b=>{if(b.closest('.tnav')||b.closest('.tabs')){if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}});
-  ['create','gallery','brand','settings'].forEach(n=>$('#v-'+n).hidden=n!==v);
+  ['create','gallery','enhance','brand','settings'].forEach(n=>$('#v-'+n).hidden=n!==v);
   document.body.classList.toggle('on-settings',v==='settings');
   if(v==='gallery')galleryUI();if(v==='brand')bkPreview();if(v==='settings')statUI();window.scrollTo({top:0});
 }
@@ -1603,7 +1704,7 @@ window.addEventListener('omka-auth',e=>{
 gateState(fbReady?'load':'dev');headerUser();
 if(!fbReady)log('info','OMKA Studio: Firebase settings are empty, so login is off (local mode).');
 
-[renderGrpChips,renderStyles,()=>go(1),badges,qualHint].forEach(f=>{try{const r=f();if(r&&r.catch)r.catch(e=>log('error',e));}catch(e){log('error','OMKA init:',e);}});
+[renderGrpChips,renderStyles,()=>go(Math.min(+WIZ.step||1,3)),badges,qualHint].forEach(f=>{try{const r=f();if(r&&r.catch)r.catch(e=>log('error',e));}catch(e){log('error','OMKA init:',e);}});
 if(!savedKey){showView('settings');setTimeout(()=>toast('Add your Gemini API key to get started'),400);}
 })();
 </script>
