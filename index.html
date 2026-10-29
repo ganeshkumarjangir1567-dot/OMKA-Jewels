@@ -368,6 +368,11 @@ main{padding-top:8px}
 details.acc summary{padding:12px 14px}
 details.acc > div{padding:2px 14px 14px;gap:12px}
 #v-create{padding-bottom:76px}
+/* photo tiles: same frame for every size so names and Download buttons line up */
+.tile.shot .im{aspect-ratio:4/5!important;display:flex;align-items:center;justify-content:center;background:var(--canvas)}
+.tile.shot .im img{width:100%;height:100%;object-fit:contain}
+.tile.shot .tb{flex:1}
+.tile.shot .dlb{margin-top:auto}
 .excmp{position:relative;max-width:560px;width:100%;align-self:center;background:var(--canvas);border-radius:4px;overflow:hidden}
 .excmp img{display:block;width:100%;height:auto}
 .excmp .before{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;clip-path:inset(0 50% 0 0);background:var(--canvas)}
@@ -618,6 +623,16 @@ dialog.savedlg::backdrop{background:rgba(40,44,63,.55)}
             <ol class="fp-steps"><li>Copy the prompt below.</li><li>Open <a href="https://gemini.google.com/app" target="_blank" rel="noopener">gemini.google.com</a> or the Gemini app.</li><li>Attach your jewellery photo with the <b>+</b> button.</li><li>Paste the prompt and send. Download the image Gemini makes.</li></ol>
             <div id="fpList"></div>
             <p class="hint">Free Gemini accounts have a daily image limit. Gemini may not always return a full 4K file; you can still use Enhance · free here after uploading.</p>
+          </div>
+          <div class="field" id="vidBox">
+            <span class="lab">Product video <em>(optional)</em></span>
+            <div class="chips"><button type="button" class="chip" id="vidToggle" aria-pressed="false">Pro video prompt · 8–10 sec</button></div>
+            <div class="freeprompt" id="vidPanel" hidden>
+              <div class="fp-head"><span class="fp-tag">ULTRA PREMIUM · VIDEO PROMPT</span><b>Make a luxury product video from your photo</b></div>
+              <ol class="fp-steps"><li>Copy the prompt below.</li><li>Open a video AI: the <a href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini app</a> (Video / Veo, about 8 sec) or <a href="https://klingai.com" target="_blank" rel="noopener">Kling AI</a> (choose 10 sec, image to video).</li><li>Attach your jewellery photo.</li><li>Paste the prompt, generate, and download the video.</li></ol>
+              <div class="fp-item"><div class="row"><b>Product showcase video</b><button type="button" class="btn pink sm" id="vidCopy">Copy prompt</button></div><textarea id="vidText" readonly aria-label="Product video prompt"></textarea></div>
+              <p class="hint">Video in the Gemini app needs a Google AI plan. AI video can sometimes change small details, so check that the piece looks exactly like yours before posting.</p>
+            </div>
           </div>
           <div class="field" id="modelBox" hidden>
             <span class="lab">Model</span>
@@ -999,6 +1014,7 @@ const WIZ=LS.get('zs-wiz',{});
 (function restoreWiz(){
   if(WIZ.typeId)st.type=TYPES.find(t=>t.id===WIZ.typeId)||null;
   if(Array.isArray(WIZ.styleIds))st.styles=WIZ.styleIds.map(id=>allStyles().find(x=>x.id===id)).filter(Boolean).slice(0,4);
+  st.vid=!!WIZ.vid;
   ['size','per','skin','q','light','angle','tone','grp'].forEach(k=>{if(WIZ[k]!=null)st[k]=WIZ[k];});
   if(!QUAL[st.q])st.q='hd';
   const setVal=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&[...(el.options||[{value:v}])].some(o=>o.value===v))el.value=v;};
@@ -1008,7 +1024,7 @@ const WIZ=LS.get('zs-wiz',{});
 })();
 function saveWiz(){
   LS.set('zs-wiz',{typeId:st.type?st.type.id:null,styleIds:st.styles.map(x=>x.id),size:st.size,per:st.per,skin:st.skin,q:st.q,light:st.light,angle:st.angle,tone:st.tone,grp:st.grp,
-    metal:$('#metal').value,outfit:$('#outfit').value,hair:$('#hair').value,extra:$('#extra').value,step:st.step,exSize:(()=>{try{return ex.size}catch(e){return WIZ.exSize}})(),exAmt:(()=>{try{return ex.amt}catch(e){return WIZ.exAmt}})(),filter:(()=>{try{return filter}catch(e){return WIZ.filter}})()});
+    vid:!!st.vid,metal:$('#metal').value,outfit:$('#outfit').value,hair:$('#hair').value,extra:$('#extra').value,step:st.step,exSize:(()=>{try{return ex.size}catch(e){return WIZ.exSize}})(),exAmt:(()=>{try{return ex.amt}catch(e){return WIZ.exAmt}})(),filter:(()=>{try{return filter}catch(e){return WIZ.filter}})()});
 }
 ['change','input'].forEach(ev=>['metal','outfit','hair','extra'].forEach(id=>document.getElementById(id).addEventListener(ev,()=>saveWiz())));
 
@@ -1162,6 +1178,7 @@ function canNext(){return st.step===1?!!st.type:st.step===2?st.styles.length>0:s
 function refresh(){
   try{renderFreePrompt();}catch(e){}
   try{saveWiz();}catch(e){}
+  try{renderVideoPrompt();}catch(e){}
   $$('.st').forEach(b=>{const n=+b.dataset.go;b.className='st'+(n<st.step?' done':n===st.step?' now':'');});
   $('#backBtn').hidden=st.step===1;
   const nb=$('#nextBtn');
@@ -1205,6 +1222,52 @@ function freePrompt(s){
   return 'Use the jewellery photo I have attached as the exact reference.\n\n'+buildPrompt(s,0)+
     '\n\nOUTPUT: ultra-high-resolution 4K image (about 4096 px on the long side), tack-sharp macro detail on every stone facet, engraving and metal edge, true-to-life gemstone colours, no blur, no noise, no compression artefacts. Return one finished image.';
 }
+/* =================== PRO VIDEO PROMPT (separate, optional) =================== */
+function videoDisplay(id){
+  return ({necklace:'displayed on a sleek black velvet neck bust',set:'the necklace on a black velvet neck bust with the matching earrings on small stands beside it',bridal:'the full set arranged on a tall black velvet neck bust',
+    mangalsutra:'displayed on a black velvet neck bust',pendant:'hanging from its chain on a minimal black velvet neck bust',earring:'the pair hanging from a minimal brushed-metal earring stand',
+    ring:'standing upright in a slim velvet ring slot on a small round pedestal',bangles:'stacked on a cylindrical black velvet bangle stand',bracelet:'wrapped around a cylindrical black velvet stand',
+    payal:'draped elegantly over a curved velvet stand',tikka:'hanging from a minimal stand with the drop centred',nath:'resting on a small round velvet pedestal'})[id]||'resting on a small round velvet pedestal';
+}
+function videoPrompt(){
+  const t=st.type,metal=$('#metal').value,tone=st.tone==='auto'?'deep black':st.tone;
+  const ratio=['9:16','16:9','1:1'].includes(st.size)?st.size:'9:16';
+  const light=st.light==='auto'?'dramatic low-key studio lighting with one soft key light and thin rim lights':st.light+' studio lighting';
+  const extra=$('#extra').value.trim();
+  return [
+`Create an ULTRA-PREMIUM 10-second luxury jewellery product showcase video from the attached photo, in the style of a high-end jewellery brand commercial.`,
+``,
+`PRODUCT (most important): the attached photo shows a real ${metal?metal+' ':''}${t?t.p:'piece of jewellery'}. Show THIS exact piece in every frame: identical design, shape, proportions, number, cut, size and colour of every stone, enamel colours, metal colour and finish. Never redesign, morph, melt, simplify, add or remove any element, and keep it fully rigid as a real object while the camera moves. Ignore anything in the photo that is not the jewellery (price tags, hands, boxes, background).`,
+``,
+`SET: the piece ${videoDisplay(t?t.id:'')}, on a seamless ${tone} background with a soft gradient and a faint glossy reflection on the surface below. Minimal, clean, nothing else in frame.`,
+``,
+`LIGHT: ${light}. A slow moving light sweep travels across the metal so edges glint, and every stone throws crisp sparkles and fire. Controlled reflections, no blown-out highlights, true-to-life colours.`,
+``,
+`CAMERA: cinematic, smooth and slow, like a motion-control rig with a macro lens. Shallow depth of field with gentle rack focus. No shake, no fast cuts, no zoom jumps.`,
+``,
+`SHOT TIMELINE (10 s; if the tool allows only 8 s, keep the same shots and shorten each one):`,
+`0–2 s: extreme macro close-up gliding across the stones, light sweep sparkling over the facets, soft bokeh.`,
+`2–5 s: slow 90-degree orbit around the piece at a low three-quarter angle, revealing its shape and craftsmanship.`,
+`5–8 s: slow push-in from the side to the centre motif, rack focus from metal detail to the main stone, sparkle flare.`,
+`8–10 s: pull back to a centred hero shot of the whole piece, perfectly lit, gentle final sparkle, hold still for the last second.`,
+``,
+`STYLE: ${ratio} aspect ratio${ratio==='9:16'?' (vertical reel)':ratio==='16:9'?' (widescreen)':' (square)'}, highest available resolution, 24 fps cinematic look, subtle slow motion, rich contrast, premium and elegant, like a top luxury jewellery house commercial.${extra?' Creative direction: '+extra+'.':''}`,
+``,
+`SOUND (if supported): soft luxury ambient music with delicate shimmer chimes timed to the sparkles. No voice-over.`,
+``,
+`AVOID: any change to the jewellery design, warped or bending chains, extra or missing stones, flicker, hands, people, text, logos, watermarks, subtitles, busy props, camera shake.`
+  ].join('\n');
+}
+function renderVideoPrompt(){
+  const on=!!st.vid;$('#vidToggle').setAttribute('aria-pressed',String(on));$('#vidPanel').hidden=!on;
+  if(on)$('#vidText').value=videoPrompt();
+}
+$('#vidToggle').onclick=()=>{st.vid=!st.vid;renderVideoPrompt();try{saveWiz();}catch(e){}};
+$('#vidCopy').onclick=async()=>{const ta=$('#vidText'),btn=$('#vidCopy');
+  try{await navigator.clipboard.writeText(ta.value);btn.textContent='Copied ✓';toast('Video prompt copied. Paste it in Gemini or Kling with your photo');}
+  catch(e){ta.focus();ta.select();try{document.execCommand('copy');btn.textContent='Copied ✓';toast('Video prompt copied');}catch(_){toast('Select the text and copy it manually',true);}}
+  setTimeout(()=>{btn.textContent='Copy prompt';},2500);};
+['input','change','click'].forEach(ev=>document.querySelector('[data-step="3"]').addEventListener(ev,e=>{if(e.target.closest('#vidBox'))return;setTimeout(()=>{try{renderVideoPrompt();}catch(_){}} ,0);}));
 function renderFreePrompt(){
   const box=$('#freePrompt');if(!box)return;
   const show=st.q==='pro'&&st.styles.length&&st.type;box.hidden=!show;if(!show)return;
@@ -1328,14 +1391,15 @@ function bump(k){stats[k]=(stats[k]||0)+1;LS.set('zs-stats',stats);}
 
 /* =================== SHOT TILES =================== */
 const HEART='<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9.2C1.6 7.3 4 4 7.4 4c2 0 3.6 1.2 4.6 2.8C13 5.2 14.6 4 16.6 4 20 4 22.4 7.3 21 10.8 19 15.6 12 20 12 20z"/></svg>';
+const niceRatio=r=>{const m=String(r).split(':').map(Number);if(m.length!==2||!m[0]||!m[1])return r;const g=(a,b)=>b?g(b,a%b):a,d=g(m[0],m[1]),a=m[0]/d,b=m[1]/d;return (a>20||b>20)?(m[0]/m[1]).toFixed(2)+':1':`${a}:${b}`;};
 const ar=r=>{const [w,h]=r.split(':');return `${w}/${h}`;};
-function placeholder(label,ratio){const c=document.createElement('div');c.className='tile';c.style.cursor='default';
+function placeholder(label,ratio){const c=document.createElement('div');c.className='tile shot';c.style.cursor='default';
   c.innerHTML=`<div class="im" style="aspect-ratio:${ar(ratio)}"><div class="shim"></div><span class="ldtx">${LOADING[0]}</span></div><span class="tb"><span class="br">${esc(label)}</span><span class="ds">Creating · ${ratio}</span></span>`;
   const t=c.querySelector('.ldtx');let i=0;c._iv=setInterval(()=>{t.textContent=LOADING[++i%LOADING.length];},2600);return c;}
 function shotTile(o){
-  const c=document.createElement('div');c.className='tile';c.dataset.id=o.id;
+  const c=document.createElement('div');c.className='tile shot';c.dataset.id=o.id;
   c.innerHTML=`<div class="im" style="aspect-ratio:${ar(o.ratio)}">${o.enh?'<span class="flag">Enhanced</span>':o.hd?'<span class="flag teal">4K HD</span>':o.parent?'<span class="flag orange">Refined</span>':''}<img alt="${esc(o.styleNm)}" loading="lazy">
-     <button type="button" class="heart${o.fav?' on':''}" aria-label="Favourite" aria-pressed="${!!o.fav}">${HEART}</button><span class="rate"><i>★</i>AI<span>${o.ratio}</span></span></div>
+     <button type="button" class="heart${o.fav?' on':''}" aria-label="Favourite" aria-pressed="${!!o.fav}">${HEART}</button><span class="rate"><i>★</i>AI<span>${niceRatio(o.ratio)}</span></span></div>
    <span class="tb"><span class="br">${esc(o.styleNm)}</span><span class="ds">${esc(o.typeNm)}${o.metal?' · '+esc(o.metal):''}</span><button type="button" class="dlb">Download</button></span>`;
   c.querySelector('img').src=o.url;
   c.querySelector('.im').onclick=e=>{if(!e.target.closest('.heart'))openPDP(o.id);};
@@ -1344,7 +1408,7 @@ function shotTile(o){
   return c;
 }
 function syncFav(o){$$(`.tile[data-id="${o.id}"] .heart`).forEach(b=>{b.classList.toggle('on',!!o.fav);b.setAttribute('aria-pressed',String(!!o.fav));});}
-function failTile(c,msg,retry){clearInterval(c._iv);c.className='tile fail';c.querySelector('.im').innerHTML=`<span>${esc(msg)}</span>`;c.querySelector('.ds').textContent='Failed';
+function failTile(c,msg,retry){clearInterval(c._iv);c.className='tile shot fail';c.querySelector('.im').innerHTML=`<span>${esc(msg)}</span>`;c.querySelector('.ds').textContent='Failed';
   if(retry){const b=document.createElement('button');b.type='button';b.className='dlb';b.textContent='Retry';b.onclick=retry;c.querySelector('.tb').appendChild(b);}}
 
 /* =================== SHOOT =================== */
@@ -1497,7 +1561,7 @@ async function openPDP(id){
   const o=await dbGet(id);if(!o)return;cur=o;
   $('#lbAfter').onload=()=>{const w=$('#lbAfter').naturalWidth,h=$('#lbAfter').naturalHeight,r=$('#lbRes');if(r)r.textContent=`${w} × ${h} px`;
   if(cur&&cur.id===o.id&&(cur.w!==w||cur.h!==h)){cur.w=w;cur.h=h;dbPut(cur);}const big=Math.max(w,h)>=4096;$('#enhBtn').disabled=big;$('#enhBtn').textContent=big?'Already 4K':'Enhance · free';};$('#lbAfter').src=o.url;$('#lbBar').textContent=o.styleNm;$('#lbTitle').textContent=o.styleNm;$('#lbSub').textContent=`${o.typeNm}${o.metal?' · '+o.metal:''}`;
-  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${o.ratio}</dd><dt>Resolution</dt><dd id="lbRes">…</dd><dt>Gemini cost</dt><dd>${o.enh?"Free (enhanced on device)":o.cost!=null?"≈ "+fmtINR(inr(o.cost)):"—"}</dd><dt>Quality</dt><dd>${o.enh?'Enhanced to 4K':o.qsize?(o.qsize.toUpperCase()==='4K'?'Ultra HD 4K':'HD '+o.qsize.toUpperCase()):'Standard'}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?`<dt>Type</dt><dd>${o.enh?'Enhanced copy (free)':o.hd?'4K HD version':'Refined version'}</dd>`:''}`;
+  $('#lbDets').innerHTML=`<dt>Size</dt><dd>${niceRatio(o.ratio)}</dd><dt>Resolution</dt><dd id="lbRes">…</dd><dt>Gemini cost</dt><dd>${o.enh?"Free (enhanced on device)":o.cost!=null?"≈ "+fmtINR(inr(o.cost)):"—"}</dd><dt>Quality</dt><dd>${o.enh?'Enhanced to 4K':o.qsize?(o.qsize.toUpperCase()==='4K'?'Ultra HD 4K':'HD '+o.qsize.toUpperCase()):'Standard'}</dd><dt>Model</dt><dd>${esc(o.model||'')}</dd><dt>Created</dt><dd>${new Date(o.t).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</dd>${o.parent?`<dt>Type</dt><dd>${o.enh?'Enhanced copy (free)':o.hd?'4K HD version':'Refined version'}</dd>`:''}`;
   $('#lbPrompt').textContent=o.prompt||'';$('#refineTx').value='';setS($('#lbStatus'),'');$('#lbDelYes').hidden=true;favUI();
   const par=(o.enh||o.hd)&&o.parent?await dbGet(o.parent):null;
   const s=par?{url:par.url}:(o.srcId?await srcGet(o.srcId):null);$('#cmpToggle').disabled=!s;if(s)$('#lbBefore').src=s.url;
